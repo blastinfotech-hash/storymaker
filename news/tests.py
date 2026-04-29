@@ -38,3 +38,39 @@ class NewsImportTests(TestCase):
         article = NewsArticle.objects.get()
         self.assertEqual(article.title, "Nova GPU anunciada")
         self.assertEqual(article.guid, "gpu-1")
+
+    def test_creates_source_from_panel(self):
+        response = self.client.post(
+            "/feeds/",
+            {
+                "action": "save_source",
+                "source-name": "TechCrunch",
+                "source-description": "Noticias de tecnologia",
+                "source-site_url": "https://techcrunch.com",
+                "source-rss_url": "https://techcrunch.com/feed/",
+                "source-is_active": "on",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(NewsSource.objects.filter(name="TechCrunch").exists())
+
+    def test_toggles_article_curated_from_panel(self):
+        source = NewsSource.objects.create(name="Ars Technica", rss_url="https://example.com/rss")
+        article = NewsArticle.objects.create(
+            source=source,
+            title="CPU nova",
+            url="https://example.com/cpu",
+            is_curated=True,
+        )
+
+        response = self.client.post(
+            "/noticias/",
+            {"action": "toggle_curated", "article_id": article.pk},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        article.refresh_from_db()
+        self.assertFalse(article.is_curated)

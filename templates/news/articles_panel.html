@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Noticias | Storymaker{% endblock %}
+{% block heading %}Noticias Importadas{% endblock %}
+{% block hero_text %}Visualize os artigos trazidos pelos feeds e escolha o que fica habilitado para o fluxo de stories do tipo news.{% endblock %}
+
+{% block content %}
+<div class="stack">
+    <div class="panel stack">
+        <div class="actions">
+            <a class="button-link secondary toolbar-link" href="{% url 'stories:dashboard' %}">Painel principal</a>
+            <a class="button-link secondary toolbar-link" href="{% url 'news:sources-panel' %}">Gerenciar feeds</a>
+        </div>
+        <form method="get" class="grid two">
+            <div>
+                <label for="source">Filtrar por fonte</label>
+                <select name="source" id="source">
+                    <option value="">Todas</option>
+                    {% for source in sources %}
+                        <option value="{{ source.pk }}" {% if selected_source == source.pk|stringformat:"s" %}selected{% endif %}>{{ source.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="curated">Curadoria</label>
+                <select name="curated" id="curated">
+                    <option value="all" {% if selected_curated == "all" %}selected{% endif %}>Todos</option>
+                    <option value="yes" {% if selected_curated == "yes" %}selected{% endif %}>Somente curados</option>
+                    <option value="no" {% if selected_curated == "no" %}selected{% endif %}>Somente nao curados</option>
+                </select>
+            </div>
+            <button type="submit">Aplicar filtros</button>
+        </form>
+    </div>
+
+    <div class="timeline">
+        {% for article in articles %}
+            <article class="card stack">
+                <div class="actions">
+                    <span class="pill {% if article.is_curated %}ok{% else %}warn{% endif %}">{% if article.is_curated %}Curado{% else %}Nao curado{% endif %}</span>
+                    {% if article.source %}<span class="pill">{{ article.source.name }}</span>{% endif %}
+                    {% if article.published_at %}<span class="meta">{{ article.published_at|date:"d/m/Y H:i" }}</span>{% endif %}
+                </div>
+                <div>
+                    <h3>{{ article.title }}</h3>
+                    {% if article.author %}<p class="meta">Autor: {{ article.author }}</p>{% endif %}
+                    <p>{{ article.summary|default:article.content|truncatechars:320 }}</p>
+                </div>
+                <div class="actions">
+                    <a class="button-link secondary toolbar-link" href="{{ article.url }}" target="_blank" rel="noreferrer">Abrir noticia</a>
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="toggle_curated">
+                        <input type="hidden" name="article_id" value="{{ article.pk }}">
+                        <button class="secondary toolbar-link" type="submit">{% if article.is_curated %}Desabilitar para stories{% else %}Habilitar para stories{% endif %}</button>
+                    </form>
+                </div>
+            </article>
+        {% empty %}
+            <div class="card">
+                <p>Nenhum artigo encontrado com os filtros atuais.</p>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

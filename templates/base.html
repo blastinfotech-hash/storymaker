@@ -170,16 +170,20 @@
             display: block;
         }
         .preview-asset {
-            width: 100%;
-            aspect-ratio: 9 / 16;
-            min-height: 360px;
-            max-height: 640px;
+            display: block;
+            width: min(100%, 420px);
+            height: auto;
+            max-height: 760px;
+            margin: 0 auto;
+            object-fit: contain;
         }
         .preview-frame {
             padding: 10px;
             border-radius: 24px;
             background: rgba(3, 8, 16, 0.54);
             border: 1px solid rgba(173, 225, 255, 0.12);
+            display: flex;
+            justify-content: center;
         }
         .preview-empty {
             min-height: 420px;
@@ -201,12 +205,20 @@
             padding: 0 16px;
         }
         .guide-help code { color: var(--accent); }
+        form { margin: 0; }
+
+        .top-nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 18px;
+        }
 
         @media (max-width: 900px) {
             .grid.two { grid-template-columns: 1fr; }
             .grid.sidebar-right { grid-template-columns: 1fr; }
             .hero { align-items: start; flex-direction: column; }
-            .preview-asset { min-height: 280px; }
+            .preview-asset { width: min(100%, 360px); }
         }
     </style>
 </head>
@@ -219,6 +231,12 @@
                 <p>{% block hero_text %}Workflow interno para conceito, direcao visual e geracao de imagem de stories.{% endblock %}</p>
             </div>
             <a class="button-link secondary" href="/admin/">Admin</a>
+        </div>
+
+        <div class="top-nav">
+            <a class="button-link secondary toolbar-link" href="{% url 'stories:dashboard' %}">Stories</a>
+            <a class="button-link secondary toolbar-link" href="{% url 'news:sources-panel' %}">Feeds RSS</a>
+            <a class="button-link secondary toolbar-link" href="{% url 'news:articles-panel' %}">Noticias</a>
         </div>
 
         {% if messages %}

@@ -1,9 +1,15 @@
+import tempfile
+from io import BytesIO
+
 from django.test import TestCase
 from django.urls import reverse
+from django.test.utils import override_settings
+from PIL import Image
 
 from branding.models import BrandGuide
 
 from .models import StoryProject
+from .services import _apply_brand_logo
 
 
 class StoryWorkflowTests(TestCase):
@@ -57,3 +63,26 @@ class StoryWorkflowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         guide.refresh_from_db()
         self.assertEqual(guide.visual_identity_prompt, "Usar notebook em close, luz dramatica e fundo escuro.")
+
+    def test_applies_brand_logo_to_generated_image(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            primary_logo_path = f"{temp_dir}/logo-dark.png"
+            light_logo_path = f"{temp_dir}/logo-light.png"
+
+            Image.new("RGBA", (500, 100), (60, 10, 120, 255)).save(primary_logo_path)
+            Image.new("RGBA", (500, 100), (255, 255, 255, 255)).save(light_logo_path)
+
+            base_image = Image.new("RGB", (1024, 1792), (235, 235, 235))
+            buffer = BytesIO()
+            base_image.save(buffer, format="PNG")
+
+            with override_settings(
+                BLAST_LOGO_PRIMARY_PATH=primary_logo_path,
+                BLAST_LOGO_LIGHT_PATH=light_logo_path,
+            ):
+                output = _apply_brand_logo(buffer.getvalue())
+
+            final_image = Image.open(BytesIO(output))
+            self.assertEqual(final_image.size, (1024, 1792))
+            footer_pixel = final_image.getpixel((512, 1700))
+            self.assertNotEqual(footer_pixel, (235, 235, 235))

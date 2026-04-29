@@ -21,6 +21,7 @@ from django.urls import include, path
 
 urlpatterns = [
     path('', include('stories.urls')),
+    path('', include('news.urls')),
     path('admin/', admin.site.urls),
 ]
 

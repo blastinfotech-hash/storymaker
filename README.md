@@ -218,7 +218,10 @@ Main variables:
 - `OPENAI_API_KEY`: OpenAI API key
 - `OPENAI_TEXT_MODEL`: text model for copy generation
 - `OPENAI_IMAGE_MODEL`: image model for visual generation
+- `OPENAI_IMAGE_SIZE`: image size sent to OpenAI, default `1024x1792` for stories
 - `OPENAI_REQUEST_TIMEOUT`: timeout in seconds for OpenAI requests
+- `BLAST_LOGO_PRIMARY_PATH`: path for the default BLAST logo asset applied after generation
+- `BLAST_LOGO_LIGHT_PATH`: path for the light BLAST logo asset applied automatically on dark footers
 - `GUNICORN_TIMEOUT`: worker timeout in seconds for web requests
 
 ## Postgres Example

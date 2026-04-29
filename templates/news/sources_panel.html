@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Feeds RSS | Storymaker{% endblock %}
+{% block heading %}Gerenciar Feeds RSS{% endblock %}
+{% block hero_text %}Cadastre, edite, habilite, desabilite, importe e remova fontes RSS sem depender do Django admin.{% endblock %}
+
+{% block content %}
+<div class="grid sidebar-right">
+    <section class="stack">
+        <div class="panel stack">
+            <div class="actions">
+                <a class="button-link secondary toolbar-link" href="{% url 'stories:dashboard' %}">Painel principal</a>
+                <a class="button-link secondary toolbar-link" href="{% url 'news:articles-panel' %}">Ver noticias</a>
+            </div>
+            <div>
+                <h2>Fontes cadastradas</h2>
+                <p class="meta">Use esta tela para manter sua lista de feeds ativa e sincronizada.</p>
+            </div>
+
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="import_active_sources">
+                <button type="submit">Importar todas as fontes ativas</button>
+            </form>
+
+            <div class="timeline">
+                {% for source in sources %}
+                    <article class="card stack">
+                        <div class="actions">
+                            <span class="pill {% if source.is_active %}ok{% else %}warn{% endif %}">{% if source.is_active %}Ativa{% else %}Inativa{% endif %}</span>
+                            <span class="pill">{{ source.article_count }} artigos</span>
+                            <span class="meta">{{ source.name }}</span>
+                        </div>
+                        <div class="stack tight">
+                            {% if source.description %}<p>{{ source.description }}</p>{% endif %}
+                            <p class="meta">RSS: {{ source.rss_url }}</p>
+                            {% if source.site_url %}<p class="meta">Site: <a href="{{ source.site_url }}" target="_blank" rel="noreferrer">{{ source.site_url }}</a></p>{% endif %}
+                            <p class="meta">Ultima importacao: {% if source.last_fetched_at %}{{ source.last_fetched_at|date:"d/m/Y H:i" }}{% else %}Nunca{% endif %}</p>
+                            {% if source.last_error %}<p class="meta">Ultimo erro: {{ source.last_error }}</p>{% endif %}
+                        </div>
+                        <div class="actions">
+                            <a class="button-link secondary toolbar-link" href="{% url 'news:sources-edit' source.pk %}">Editar</a>
+                            <form method="post">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="import_source">
+                                <input type="hidden" name="source_id" value="{{ source.pk }}">
+                                <button class="secondary toolbar-link" type="submit">Importar</button>
+                            </form>
+                            <form method="post">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="toggle_source">
+                                <input type="hidden" name="source_id" value="{{ source.pk }}">
+                                <button class="secondary toolbar-link" type="submit">{% if source.is_active %}Desabilitar{% else %}Habilitar{% endif %}</button>
+                            </form>
+                            <form method="post">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete_source">
+                                <input type="hidden" name="source_id" value="{{ source.pk }}">
+                                <button class="secondary toolbar-link" type="submit">Remover</button>
+                            </form>
+                        </div>
+                    </article>
+                {% empty %}
+                    <div class="card">
+                        <p>Nenhuma fonte RSS cadastrada ainda.</p>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+
+    <section class="stack">
+        <div class="card stack">
+            <h2>{% if editing_source %}Editar fonte{% else %}Nova fonte{% endif %}</h2>
+            <p class="meta">Cadastre o feed RSS principal da fonte. O sistema importa e atualiza os artigos por URL.</p>
+            <form method="post" class="stack">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="save_source">
+                {% if editing_source %}<input type="hidden" name="source_id" value="{{ editing_source.pk }}">{% endif %}
+                {% for field in source_form %}
+                    <div>
+                        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.errors %}<div class="meta">{{ field.errors|join:", " }}</div>{% endif %}
+                    </div>
+                {% endfor %}
+                <button type="submit">{% if editing_source %}Salvar alteracoes{% else %}Adicionar fonte{% endif %}</button>
+            </form>
+            {% if editing_source %}
+                <a class="button-link secondary toolbar-link" href="{% url 'news:sources-panel' %}">Cancelar edicao</a>
+            {% endif %}
+        </div>
+    </section>
+</div>
+{% endblock %}

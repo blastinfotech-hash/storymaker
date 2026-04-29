@@ -2,11 +2,14 @@ import base64
 import hashlib
 import json
 import logging
+from io import BytesIO
+from pathlib import Path
 from html import escape
 
 from django.conf import settings
 from django.core.files.base import ContentFile
 from openai import OpenAI
+from PIL import Image, ImageStat
 
 from branding.models import BrandGuide
 
@@ -29,6 +32,54 @@ PALETTES = [
 class _SafeTemplateDict(dict):
     def __missing__(self, key):
         return "{" + key + "}"
+
+
+def _resolve_logo_path(preferred_path: str) -> Path | None:
+    path = Path(preferred_path)
+    if path.exists():
+        return path
+    return None
+
+
+def _pick_logo_path(image: Image.Image) -> Path | None:
+    footer_height = max(1, image.height // 5)
+    footer_box = (0, image.height - footer_height, image.width, image.height)
+    footer_region = image.crop(footer_box).convert("L")
+    brightness = ImageStat.Stat(footer_region).mean[0]
+
+    preferred = settings.BLAST_LOGO_PRIMARY_PATH if brightness > 150 else settings.BLAST_LOGO_LIGHT_PATH
+    fallback = settings.BLAST_LOGO_LIGHT_PATH if preferred == settings.BLAST_LOGO_PRIMARY_PATH else settings.BLAST_LOGO_PRIMARY_PATH
+    return _resolve_logo_path(preferred) or _resolve_logo_path(fallback)
+
+
+def _apply_brand_logo(raw_image: bytes) -> bytes:
+    image = Image.open(BytesIO(raw_image)).convert("RGBA")
+    logo_path = _pick_logo_path(image)
+    if logo_path is None:
+        return raw_image
+
+    logo = Image.open(logo_path).convert("RGBA")
+
+    max_logo_width = int(image.width * 0.44)
+    target_width = min(max_logo_width, logo.width)
+    scale = target_width / logo.width
+    target_height = max(1, int(logo.height * scale))
+    logo = logo.resize((target_width, target_height), Image.Resampling.LANCZOS)
+
+    margin_bottom = int(image.height * 0.045)
+    x = (image.width - logo.width) // 2
+    y = image.height - logo.height - margin_bottom
+
+    shadow = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    shadow_alpha = logo.getchannel("A").point(lambda value: int(value * 0.24))
+    shadow.paste((0, 0, 0, 255), (x, y + 4), shadow_alpha)
+
+    composed = Image.alpha_composite(image, shadow)
+    composed.alpha_composite(logo, (x, y))
+
+    output = BytesIO()
+    composed.convert("RGB").save(output, format="PNG", optimize=True)
+    return output.getvalue()
 
 
 def _get_client() -> OpenAI | None:
@@ -407,6 +458,10 @@ def generate_image_asset(
         image_prompt=version.image_prompt or "Sem prompt base.",
         change_request=change_request or "Sem ajustes adicionais.",
     )
+    final_prompt += (
+        "\n\nA composicao deve reservar area limpa no rodape para aplicacao da logo oficial da BLAST "
+        "em pos-producao, centralizada e com boa respiracao visual."
+    )
 
     client = _get_client()
     if client is None:
@@ -418,11 +473,14 @@ def generate_image_asset(
         result = client.images.generate(
             model=settings.OPENAI_IMAGE_MODEL,
             prompt=final_prompt,
-            size="1024x1536",
+            size=settings.OPENAI_IMAGE_SIZE,
         )
-        raw_image = base64.b64decode(result.data[0].b64_json)
+        raw_image = _apply_brand_logo(base64.b64decode(result.data[0].b64_json))
         file_name = f"story-v{version.version_number or 'draft'}.png"
-        note = f"Imagem gerada pela API da OpenAI com o modelo {settings.OPENAI_IMAGE_MODEL}."
+        note = (
+            f"Imagem gerada pela API da OpenAI com o modelo {settings.OPENAI_IMAGE_MODEL} "
+            f"no tamanho {settings.OPENAI_IMAGE_SIZE}, com logo oficial da BLAST aplicada automaticamente."
+        )
         return file_name, ContentFile(raw_image), final_prompt, settings.OPENAI_IMAGE_MODEL, note
     except Exception as exc:
         logger.exception("Failed to generate image asset: %s", exc)
