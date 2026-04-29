@@ -15,4 +15,4 @@ COPY . .
 RUN chmod +x /app/docker/entrypoint.sh
 
 ENTRYPOINT ["/app/docker/entrypoint.sh"]
-CMD ["sh", "-c", "gunicorn config.wsgi:application --bind 0.0.0.0:${APP_PORT:-8015}"]
+CMD ["sh", "-c", "gunicorn config.wsgi:application --bind 0.0.0.0:${APP_PORT:-8015} --timeout ${GUNICORN_TIMEOUT:-120}"]

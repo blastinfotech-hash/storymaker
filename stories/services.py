@@ -34,7 +34,11 @@ class _SafeTemplateDict(dict):
 def _get_client() -> OpenAI | None:
     if not settings.OPENAI_API_KEY:
         return None
-    return OpenAI(api_key=settings.OPENAI_API_KEY)
+    return OpenAI(
+        api_key=settings.OPENAI_API_KEY,
+        timeout=settings.OPENAI_REQUEST_TIMEOUT,
+        max_retries=0,
+    )
 
 
 def is_openai_configured() -> bool:
