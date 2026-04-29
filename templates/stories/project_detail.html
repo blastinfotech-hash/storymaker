@@ -9,8 +9,13 @@
     <section class="stack">
         <div class="panel stack">
             <div class="actions">
-                <a class="button-link secondary" href="{% url 'stories:dashboard' %}">Voltar</a>
+                <a class="button-link secondary toolbar-link" href="{% url 'stories:dashboard' %}">Voltar</a>
                 <span class="pill">{{ project.get_status_display }}</span>
+                {% if openai_ready %}
+                    <span class="pill ok">{{ openai_image_model }}</span>
+                {% else %}
+                    <span class="pill warn">Arte local</span>
+                {% endif %}
             </div>
             <div>
                 <h2>Resumo</h2>
@@ -30,10 +35,10 @@
                     <div class="actions">
                         <span class="pill">Versao atual v{{ latest_version.version_number }}</span>
                         {% if latest_version.image_model %}
-                            <span class="pill">{{ latest_version.image_model }}</span>
+                            <span class="pill {% if latest_version.image_model == 'placeholder-svg' %}warn{% else %}ok{% endif %}">{{ latest_version.image_model }}</span>
                         {% endif %}
                         {% if latest_version.has_image %}
-                            <a class="button-link secondary" href="{% url 'stories:version-download' latest_version.pk %}">Baixar imagem</a>
+                            <a class="button-link secondary toolbar-link" href="{% url 'stories:version-download' latest_version.pk %}">Baixar imagem</a>
                         {% endif %}
                     </div>
                     <div>
@@ -50,7 +55,13 @@
                     </div>
                     {% if latest_version.generated_image %}
                         <div class="preview-frame">
-                            <img class="preview" src="{{ latest_version.generated_image.url }}" alt="Preview da versao {{ latest_version.version_number }}">
+                            {% if latest_version.is_svg_image %}
+                                <object class="preview preview-asset" data="{% url 'stories:version-preview' latest_version.pk %}" type="image/svg+xml">
+                                    <a class="button-link secondary toolbar-link" href="{% url 'stories:version-download' latest_version.pk %}">Abrir preview</a>
+                                </object>
+                            {% else %}
+                                <img class="preview preview-asset" src="{% url 'stories:version-preview' latest_version.pk %}" alt="Preview da versao {{ latest_version.version_number }}">
+                            {% endif %}
                         </div>
                     {% endif %}
                 </div>
@@ -111,6 +122,8 @@
             {% endif %}
         </div>
 
+        {% include "stories/_brand_guide_form.html" %}
+
         <div class="panel soft stack">
             <h2>Historico</h2>
             <div class="timeline">
@@ -119,7 +132,7 @@
                         <div class="actions">
                             <span class="pill">v{{ version.version_number }}</span>
                             {% if version.image_model %}
-                                <span class="pill">{{ version.image_model }}</span>
+                                <span class="pill {% if version.image_model == 'placeholder-svg' %}warn{% else %}ok{% endif %}">{{ version.image_model }}</span>
                             {% endif %}
                             <span class="meta">{{ version.created_at|date:"d/m/Y H:i" }}</span>
                         </div>
@@ -143,9 +156,15 @@
                         </div>
                         {% if version.generated_image %}
                             <div class="preview-frame">
-                                <img class="preview" src="{{ version.generated_image.url }}" alt="Imagem da versao {{ version.version_number }}">
+                                {% if version.is_svg_image %}
+                                    <object class="preview preview-asset" data="{% url 'stories:version-preview' version.pk %}" type="image/svg+xml">
+                                        <a class="button-link secondary toolbar-link" href="{% url 'stories:version-download' version.pk %}">Abrir preview</a>
+                                    </object>
+                                {% else %}
+                                    <img class="preview preview-asset" src="{% url 'stories:version-preview' version.pk %}" alt="Imagem da versao {{ version.version_number }}">
+                                {% endif %}
                             </div>
-                            <a class="button-link secondary" href="{% url 'stories:version-download' version.pk %}">Baixar esta versao</a>
+                            <a class="button-link secondary toolbar-link" href="{% url 'stories:version-download' version.pk %}">Baixar esta versao</a>
                         {% endif %}
                     </article>
                 {% endfor %}

@@ -1,3 +1,6 @@
+import mimetypes
+
+from django.conf import settings
 from django.contrib import messages
 from django.core.files.storage import default_storage
 from django.http import FileResponse, Http404
@@ -5,22 +8,40 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from branding.models import BrandGuide
 
-from .forms import ChangeRequestForm, StoryProjectForm
+from .forms import ActiveBrandGuideForm, ChangeRequestForm, StoryProjectForm
 from .models import StoryProject, StoryVersion
-from .services import generate_image_asset, generate_story_concept, refine_image_direction
+from .services import generate_image_asset, generate_story_concept, is_openai_configured, refine_image_direction
+
+
+def _base_generation_context():
+    return {
+        "openai_ready": is_openai_configured(),
+        "openai_image_model": settings.OPENAI_IMAGE_MODEL,
+    }
 
 
 def dashboard(request):
+    guide = BrandGuide.get_active()
     if request.method == "POST":
-        form = StoryProjectForm(request.POST)
-        if form.is_valid():
-            project = form.save()
-            messages.success(request, "Projeto criado. Gere o conceito para iniciar o workflow.")
-            return redirect("stories:project-detail", pk=project.pk)
+        action = request.POST.get("action")
+        if action == "update_guide":
+            guide_form = ActiveBrandGuideForm(request.POST, instance=guide, prefix="guide")
+            form = StoryProjectForm()
+            if guide_form.is_valid():
+                guide_form.save()
+                messages.success(request, "Guia ativo atualizado.")
+                return redirect("stories:dashboard")
+        else:
+            form = StoryProjectForm(request.POST)
+            guide_form = ActiveBrandGuideForm(instance=guide, prefix="guide")
+            if form.is_valid():
+                project = form.save()
+                messages.success(request, "Projeto criado. Gere o conceito para iniciar o workflow.")
+                return redirect("stories:project-detail", pk=project.pk)
     else:
         form = StoryProjectForm()
+        guide_form = ActiveBrandGuideForm(instance=guide, prefix="guide")
 
-    guide = BrandGuide.get_active()
     projects = StoryProject.objects.select_related("source_article").prefetch_related("versions")[:12]
     return render(
         request,
@@ -28,7 +49,9 @@ def dashboard(request):
         {
             "form": form,
             "guide": guide,
+            "guide_form": guide_form,
             "projects": projects,
+            **_base_generation_context(),
         },
     )
 
@@ -88,11 +111,12 @@ def _create_image_version(
         version.text_model = refined["text_model"]
 
     version.save()
-    file_name, content, final_prompt, image_model = generate_image_asset(version, guide, change_request)
+    file_name, content, final_prompt, image_model, image_note = generate_image_asset(version, guide, change_request)
     version.prompt_snapshot = final_prompt
     version.image_model = image_model
+    version.generation_notes = image_note
     version.generated_image.save(file_name, content, save=False)
-    version.save(update_fields=["prompt_snapshot", "image_model", "generated_image"])
+    version.save(update_fields=["prompt_snapshot", "image_model", "generation_notes", "generated_image"])
 
     project.status = StoryProject.Status.IMAGE_READY
     project.save(update_fields=["status", "updated_at"])
@@ -109,9 +133,17 @@ def project_detail(request, pk: int):
 
     concept_form = ChangeRequestForm(prefix="concept")
     image_form = ChangeRequestForm(prefix="image")
+    guide_form = ActiveBrandGuideForm(instance=guide, prefix="guide")
 
     if request.method == "POST":
         action = request.POST.get("action")
+        if action == "update_guide":
+            guide_form = ActiveBrandGuideForm(request.POST, instance=guide, prefix="guide")
+            if guide_form.is_valid():
+                guide_form.save()
+                messages.success(request, "Guia ativo atualizado para as proximas geracoes.")
+                return redirect("stories:project-detail", pk=project.pk)
+
         if action == "generate_concept":
             _create_concept_version(project=project, guide=guide)
             messages.success(request, "Conceito gerado com sucesso.")
@@ -172,6 +204,8 @@ def project_detail(request, pk: int):
             "versions": versions,
             "concept_form": concept_form,
             "image_form": image_form,
+            "guide_form": guide_form,
+            **_base_generation_context(),
         },
     )
 
@@ -182,3 +216,12 @@ def download_version_image(request, version_id: int):
         raise Http404("Esta versao nao possui imagem gerada.")
     file_handle = default_storage.open(version.generated_image.name, "rb")
     return FileResponse(file_handle, as_attachment=True, filename=version.generated_image.name.rsplit("/", 1)[-1])
+
+
+def preview_version_image(request, version_id: int):
+    version = get_object_or_404(StoryVersion.objects.select_related("project"), pk=version_id)
+    if not version.generated_image:
+        raise Http404("Esta versao nao possui imagem gerada.")
+    file_handle = default_storage.open(version.generated_image.name, "rb")
+    content_type, _ = mimetypes.guess_type(version.generated_image.name)
+    return FileResponse(file_handle, content_type=content_type or "application/octet-stream")

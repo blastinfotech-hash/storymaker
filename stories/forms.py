@@ -1,5 +1,6 @@
 from django import forms
 
+from branding.models import BrandGuide
 from news.models import NewsArticle
 
 from .models import StoryProject
@@ -33,3 +34,15 @@ class ChangeRequestForm(forms.Form):
         required=False,
         widget=forms.Textarea(attrs={"rows": 3, "placeholder": "Ex.: deixar a imagem mais dramatica e reduzir o texto."}),
     )
+
+
+class ActiveBrandGuideForm(forms.ModelForm):
+    class Meta:
+        model = BrandGuide
+        fields = ["name", "brand_summary", "visual_rules", "copy_prompt_template", "image_prompt_template"]
+        widgets = {
+            "brand_summary": forms.Textarea(attrs={"rows": 4}),
+            "visual_rules": forms.Textarea(attrs={"rows": 6}),
+            "copy_prompt_template": forms.Textarea(attrs={"rows": 10}),
+            "image_prompt_template": forms.Textarea(attrs={"rows": 10}),
+        }

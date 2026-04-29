@@ -6,30 +6,34 @@
 
 {% block content %}
 <div class="grid two">
-    <section class="panel stack">
-        <div>
-            <h2>Novo projeto</h2>
-            <p class="meta">O tipo define o contexto editorial. Para `news`, selecione uma noticia curada ja salva no banco.</p>
+    <section class="stack">
+        <div class="panel stack">
+            <div class="actions">
+                {% if openai_ready %}
+                    <span class="pill ok">OpenAI pronta: {{ openai_image_model }}</span>
+                {% else %}
+                    <span class="pill warn">OpenAI indisponivel: usando arte local</span>
+                {% endif %}
+            </div>
+            <div>
+                <h2>Novo projeto</h2>
+                <p class="meta">O tipo define o contexto editorial. Para `news`, selecione uma noticia curada ja salva no banco.</p>
+            </div>
+
+            <form method="post" class="stack">
+                {% csrf_token %}
+                {% for field in form %}
+                    <div>
+                        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.errors %}<div class="meta">{{ field.errors|join:", " }}</div>{% endif %}
+                    </div>
+                {% endfor %}
+                <button type="submit">Criar projeto</button>
+            </form>
         </div>
 
-        <form method="post" class="stack">
-            {% csrf_token %}
-            {% for field in form %}
-                <div>
-                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-                    {{ field }}
-                    {% if field.errors %}<div class="meta">{{ field.errors|join:", " }}</div>{% endif %}
-                </div>
-            {% endfor %}
-            <button type="submit">Criar projeto</button>
-        </form>
-
-        <div class="card">
-            <h3>Guia ativo</h3>
-            <p><strong>{{ guide.name }}</strong></p>
-            <p class="meta">{{ guide.brand_summary }}</p>
-            <p class="meta">{{ guide.visual_rules }}</p>
-        </div>
+        {% include "stories/_brand_guide_form.html" %}
     </section>
 
     <section class="stack">
@@ -41,7 +45,7 @@
         <div class="cards">
             {% for project in projects %}
                 <article class="card stack">
-                    <div class="actions" style="justify-content: space-between;">
+                    <div class="actions">
                         <span class="pill">{{ project.get_status_display }}</span>
                         <span class="pill">{{ project.get_story_type_display }}</span>
                     </div>

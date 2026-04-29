@@ -91,3 +91,14 @@ class StoryVersion(models.Model):
     @property
     def has_image(self) -> bool:
         return bool(self.generated_image)
+
+    @property
+    def image_extension(self) -> str:
+        if not self.generated_image:
+            return ""
+        _, _, extension = self.generated_image.name.lower().rpartition(".")
+        return extension
+
+    @property
+    def is_svg_image(self) -> bool:
+        return self.image_extension == "svg"

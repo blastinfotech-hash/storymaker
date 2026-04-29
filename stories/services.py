@@ -33,6 +33,10 @@ def _get_client() -> OpenAI | None:
     return OpenAI(api_key=settings.OPENAI_API_KEY)
 
 
+def is_openai_configured() -> bool:
+    return bool(settings.OPENAI_API_KEY)
+
+
 def _article_context(project: StoryProject) -> str:
     if not project.source_article:
         return ""
@@ -382,7 +386,7 @@ def generate_image_asset(
     version: StoryVersion,
     guide: BrandGuide,
     change_request: str = "",
-) -> tuple[str, ContentFile, str, str]:
+) -> tuple[str, ContentFile, str, str, str]:
     final_prompt = _render_template(
         guide.image_prompt_template,
         brand_name=guide.name,
@@ -396,7 +400,8 @@ def generate_image_asset(
     client = _get_client()
     if client is None:
         file_name = f"story-v{version.version_number or 'draft'}.svg"
-        return file_name, ContentFile(_placeholder_svg(version, final_prompt)), final_prompt, "placeholder-svg"
+        note = "Imagem gerada localmente porque OPENAI_API_KEY nao esta configurada no ambiente atual."
+        return file_name, ContentFile(_placeholder_svg(version, final_prompt)), final_prompt, "placeholder-svg", note
 
     try:
         result = client.images.generate(
@@ -406,8 +411,10 @@ def generate_image_asset(
         )
         raw_image = base64.b64decode(result.data[0].b64_json)
         file_name = f"story-v{version.version_number or 'draft'}.png"
-        return file_name, ContentFile(raw_image), final_prompt, settings.OPENAI_IMAGE_MODEL
+        note = f"Imagem gerada pela API da OpenAI com o modelo {settings.OPENAI_IMAGE_MODEL}."
+        return file_name, ContentFile(raw_image), final_prompt, settings.OPENAI_IMAGE_MODEL, note
     except Exception as exc:
         logger.exception("Failed to generate image asset: %s", exc)
         file_name = f"story-v{version.version_number or 'draft'}.svg"
-        return file_name, ContentFile(_placeholder_svg(version, final_prompt)), final_prompt, "placeholder-svg"
+        note = "Imagem gerada localmente porque a chamada da API de imagem falhou. Verifique configuracao e logs."
+        return file_name, ContentFile(_placeholder_svg(version, final_prompt)), final_prompt, "placeholder-svg", note

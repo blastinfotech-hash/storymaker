@@ -46,3 +46,28 @@ class StoryWorkflowTests(TestCase):
 
         self.assertIn("<svg", svg_content)
         self.assertNotIn("foreignObject", svg_content)
+        self.assertIn("OPENAI_API_KEY", image_version.generation_notes)
+
+        preview_response = self.client.get(reverse("stories:version-preview", args=[image_version.pk]))
+        self.assertEqual(preview_response.status_code, 200)
+        self.assertEqual(preview_response.headers["Content-Type"], "image/svg+xml")
+
+    def test_updates_active_guide_from_dashboard(self):
+        guide = BrandGuide.get_active()
+
+        response = self.client.post(
+            reverse("stories:dashboard"),
+            {
+                "action": "update_guide",
+                "guide-name": guide.name,
+                "guide-brand_summary": "Novo resumo da marca.",
+                "guide-visual_rules": "Usar notebook em close, luz dramatica e fundo escuro.",
+                "guide-copy_prompt_template": guide.copy_prompt_template,
+                "guide-image_prompt_template": guide.image_prompt_template,
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        guide.refresh_from_db()
+        self.assertEqual(guide.brand_summary, "Novo resumo da marca.")
