@@ -29,6 +29,9 @@
                 <div class="card stack">
                     <div class="actions">
                         <span class="pill">Versao atual v{{ latest_version.version_number }}</span>
+                        {% if latest_version.image_model %}
+                            <span class="pill">{{ latest_version.image_model }}</span>
+                        {% endif %}
                         {% if latest_version.has_image %}
                             <a class="button-link secondary" href="{% url 'stories:version-download' latest_version.pk %}">Baixar imagem</a>
                         {% endif %}
@@ -46,7 +49,9 @@
                         <p class="meta">{{ latest_version.image_prompt|linebreaksbr }}</p>
                     </div>
                     {% if latest_version.generated_image %}
-                        <img class="preview" src="{{ latest_version.generated_image.url }}" alt="Preview da versao {{ latest_version.version_number }}">
+                        <div class="preview-frame">
+                            <img class="preview" src="{{ latest_version.generated_image.url }}" alt="Preview da versao {{ latest_version.version_number }}">
+                        </div>
                     {% endif %}
                 </div>
             {% else %}
@@ -113,6 +118,9 @@
                     <article class="card stack">
                         <div class="actions">
                             <span class="pill">v{{ version.version_number }}</span>
+                            {% if version.image_model %}
+                                <span class="pill">{{ version.image_model }}</span>
+                            {% endif %}
                             <span class="meta">{{ version.created_at|date:"d/m/Y H:i" }}</span>
                         </div>
                         <div>
@@ -134,7 +142,9 @@
                             <p class="meta">{{ version.visual_direction|default:"-"|linebreaksbr }}</p>
                         </div>
                         {% if version.generated_image %}
-                            <img class="preview" src="{{ version.generated_image.url }}" alt="Imagem da versao {{ version.version_number }}">
+                            <div class="preview-frame">
+                                <img class="preview" src="{{ version.generated_image.url }}" alt="Imagem da versao {{ version.version_number }}">
+                            </div>
                             <a class="button-link secondary" href="{% url 'stories:version-download' version.pk %}">Baixar esta versao</a>
                         {% endif %}
                     </article>

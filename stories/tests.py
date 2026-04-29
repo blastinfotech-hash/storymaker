@@ -39,3 +39,10 @@ class StoryWorkflowTests(TestCase):
         self.assertEqual(project.status, StoryProject.Status.IMAGE_READY)
         self.assertTrue(image_version.has_image)
         self.assertEqual(project.versions.count(), 2)
+        self.assertTrue(image_version.generated_image.name.endswith(".svg"))
+
+        with image_version.generated_image.open("r") as image_file:
+            svg_content = image_file.read()
+
+        self.assertIn("<svg", svg_content)
+        self.assertNotIn("foreignObject", svg_content)

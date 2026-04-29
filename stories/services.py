@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import json
 import logging
 from html import escape
@@ -12,6 +13,13 @@ from branding.models import BrandGuide
 from .models import StoryProject, StoryVersion
 
 logger = logging.getLogger(__name__)
+
+PALETTES = [
+    ("#04111f", "#0e2a47", "#2de1fc", "#90f3ff"),
+    ("#12081f", "#33215f", "#8d63ff", "#ded0ff"),
+    ("#08131d", "#11354a", "#35ffa1", "#c4ffe6"),
+    ("#180d08", "#523223", "#ff9654", "#ffe0cc"),
+]
 
 
 class _SafeTemplateDict(dict):
@@ -77,6 +85,115 @@ def _safe_json(raw_text: str) -> dict:
 
 def _render_template(template: str, **context) -> str:
     return template.format_map(_SafeTemplateDict(context))
+
+
+def _wrap_svg_text(text: str, max_chars: int, max_lines: int) -> list[str]:
+    words = text.replace("\n", " ").split()
+    if not words:
+        return []
+
+    lines = []
+    current = words[0]
+    for word in words[1:]:
+        candidate = f"{current} {word}"
+        if len(candidate) <= max_chars:
+            current = candidate
+            continue
+        lines.append(current)
+        current = word
+        if len(lines) >= max_lines - 1:
+            break
+
+    if len(lines) < max_lines:
+        lines.append(current)
+
+    if len(lines) > max_lines:
+        lines = lines[:max_lines]
+
+    remaining_words = words[len(" ".join(lines).split()):]
+    if remaining_words and lines:
+        lines[-1] = lines[-1][: max(0, max_chars - 1)].rstrip() + "..."
+    return lines
+
+
+def _text_block(lines: list[str], x: int, y: int, font_size: int, line_height: int, fill: str, weight: str = "400") -> str:
+    if not lines:
+        return ""
+    tspans = []
+    for index, line in enumerate(lines):
+        dy = "0" if index == 0 else str(line_height)
+        tspans.append(f'<tspan x="{x}" dy="{dy}">{escape(line)}</tspan>')
+    return (
+        f'<text x="{x}" y="{y}" fill="{fill}" font-family="Arial, sans-serif" '
+        f'font-size="{font_size}" font-weight="{weight}">{"".join(tspans)}</text>'
+    )
+
+
+def _palette_for_version(version: StoryVersion) -> tuple[str, str, str, str]:
+    seed = f"{version.project.story_type}:{version.headline}:{version.image_prompt}"
+    index = int(hashlib.sha256(seed.encode("utf-8")).hexdigest(), 16) % len(PALETTES)
+    return PALETTES[index]
+
+
+def _infer_subject(prompt: str) -> str:
+    lowered = prompt.lower()
+    if any(term in lowered for term in ["notebook", "laptop"]):
+        return "laptop"
+    if any(term in lowered for term in ["chip", "ia", "ai", "circuit"]):
+        return "chip"
+    if any(term in lowered for term in ["cloud", "nuvem", "server", "servidor", "datacenter"]):
+        return "cloud"
+    return "abstract"
+
+
+def _subject_art(subject: str, accent: str, accent_soft: str) -> str:
+    if subject == "laptop":
+        return f"""
+<g transform="translate(590 560)">
+  <rect x="0" y="0" width="340" height="220" rx="22" fill="#08111d" stroke="{accent}" stroke-width="5"/>
+  <rect x="24" y="24" width="292" height="172" rx="12" fill="none" stroke="{accent_soft}" stroke-width="3" opacity="0.95"/>
+  <rect x="-36" y="230" width="412" height="28" rx="14" fill="{accent}" opacity="0.95"/>
+  <rect x="110" y="238" width="120" height="8" rx="4" fill="#ffffff" opacity="0.48"/>
+  <path d="M70 175 L138 118 L178 148 L238 88 L290 126" fill="none" stroke="{accent}" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="138" cy="118" r="8" fill="{accent_soft}"/>
+  <circle cx="178" cy="148" r="8" fill="{accent_soft}"/>
+  <circle cx="238" cy="88" r="8" fill="{accent_soft}"/>
+  <circle cx="290" cy="126" r="8" fill="{accent_soft}"/>
+</g>
+"""
+    if subject == "chip":
+        return f"""
+<g transform="translate(620 520)">
+  <rect x="0" y="0" width="260" height="260" rx="34" fill="#08111d" stroke="{accent}" stroke-width="6"/>
+  <rect x="54" y="54" width="152" height="152" rx="22" fill="none" stroke="{accent_soft}" stroke-width="4"/>
+  <circle cx="130" cy="130" r="38" fill="{accent}" opacity="0.2"/>
+  <circle cx="130" cy="130" r="20" fill="{accent}"/>
+  <g stroke="{accent_soft}" stroke-width="6" stroke-linecap="round">
+    <line x1="38" y1="40" x2="38" y2="0"/><line x1="84" y1="40" x2="84" y2="0"/><line x1="130" y1="40" x2="130" y2="0"/><line x1="176" y1="40" x2="176" y2="0"/><line x1="222" y1="40" x2="222" y2="0"/>
+    <line x1="38" y1="260" x2="38" y2="300"/><line x1="84" y1="260" x2="84" y2="300"/><line x1="130" y1="260" x2="130" y2="300"/><line x1="176" y1="260" x2="176" y2="300"/><line x1="222" y1="260" x2="222" y2="300"/>
+    <line x1="0" y1="38" x2="40" y2="38"/><line x1="0" y1="84" x2="40" y2="84"/><line x1="0" y1="130" x2="40" y2="130"/><line x1="0" y1="176" x2="40" y2="176"/><line x1="0" y1="222" x2="40" y2="222"/>
+    <line x1="220" y1="38" x2="260" y2="38"/><line x1="220" y1="84" x2="260" y2="84"/><line x1="220" y1="130" x2="260" y2="130"/><line x1="220" y1="176" x2="260" y2="176"/><line x1="220" y1="222" x2="260" y2="222"/>
+  </g>
+</g>
+"""
+    if subject == "cloud":
+        return f"""
+<g transform="translate(560 560)">
+  <ellipse cx="210" cy="170" rx="180" ry="90" fill="#08111d" stroke="{accent}" stroke-width="5"/>
+  <circle cx="150" cy="130" r="80" fill="#08111d" stroke="{accent_soft}" stroke-width="5"/>
+  <circle cx="250" cy="110" r="92" fill="#08111d" stroke="{accent_soft}" stroke-width="5"/>
+  <path d="M80 210 C160 275 260 275 340 210" fill="none" stroke="{accent}" stroke-width="8" stroke-linecap="round"/>
+  <path d="M142 280 L210 220 L278 280" fill="none" stroke="{accent_soft}" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+"""
+    return f"""
+<g transform="translate(610 500)">
+  <circle cx="150" cy="160" r="130" fill="{accent}" opacity="0.16"/>
+  <circle cx="290" cy="320" r="96" fill="{accent_soft}" opacity="0.18"/>
+  <path d="M0 280 C80 120 240 80 340 180" fill="none" stroke="{accent}" stroke-width="12" stroke-linecap="round"/>
+  <path d="M20 350 C120 180 260 160 350 250" fill="none" stroke="{accent_soft}" stroke-width="8" stroke-linecap="round"/>
+</g>
+"""
 
 
 def _fallback_concept(
@@ -208,30 +325,55 @@ def refine_image_direction(
 
 
 def _placeholder_svg(version: StoryVersion, final_prompt: str) -> bytes:
-    title = escape(version.headline or version.project.title)
-    copy_text = escape((version.copy_text or "Preview local do story.")[:180])
-    prompt_excerpt = escape(final_prompt[:220])
+    bg_start, bg_end, accent, accent_soft = _palette_for_version(version)
+    subject = _infer_subject(f"{version.headline} {version.image_prompt} {final_prompt}")
+    headline_lines = _wrap_svg_text(version.headline or version.project.title, max_chars=18, max_lines=3)
+    copy_lines = _wrap_svg_text(version.copy_text or "Preview local gerado para manter o workflow utilizavel.", max_chars=30, max_lines=5)
+    prompt_lines = _wrap_svg_text(version.image_prompt or final_prompt, max_chars=40, max_lines=4)
+    subject_label = {
+        "laptop": "Laptop focus",
+        "chip": "AI chip focus",
+        "cloud": "Cloud infra focus",
+        "abstract": "Editorial tech focus",
+    }[subject]
     svg = f"""<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1080\" height=\"1920\" viewBox=\"0 0 1080 1920\">
 <defs>
-<linearGradient id=\"bg\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\">
-<stop offset=\"0%\" stop-color=\"#070b1a\"/>
-<stop offset=\"55%\" stop-color=\"#13213d\"/>
-<stop offset=\"100%\" stop-color=\"#0fd3ff\"/>
-</linearGradient>
+  <linearGradient id=\"bg\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\">
+    <stop offset=\"0%\" stop-color=\"{bg_start}\"/>
+    <stop offset=\"100%\" stop-color=\"{bg_end}\"/>
+  </linearGradient>
+  <linearGradient id=\"panel\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\">
+    <stop offset=\"0%\" stop-color=\"#091120\" stop-opacity=\"0.92\"/>
+    <stop offset=\"100%\" stop-color=\"#0f1c32\" stop-opacity=\"0.72\"/>
+  </linearGradient>
 </defs>
 <rect width=\"1080\" height=\"1920\" fill=\"url(#bg)\"/>
-<circle cx=\"840\" cy=\"380\" r=\"220\" fill=\"#8d3dff\" fill-opacity=\"0.35\"/>
-<circle cx=\"250\" cy=\"1380\" r=\"260\" fill=\"#00f0ff\" fill-opacity=\"0.28\"/>
-<rect x=\"84\" y=\"100\" width=\"912\" height=\"1720\" rx=\"42\" fill=\"rgba(4,8,20,0.48)\" stroke=\"rgba(255,255,255,0.16)\"/>
-<text x=\"130\" y=\"220\" fill=\"#a9f6ff\" font-family=\"Arial, sans-serif\" font-size=\"42\" font-weight=\"700\">BLAST INFO &amp; TECH</text>
-<text x=\"130\" y=\"360\" fill=\"#ffffff\" font-family=\"Arial, sans-serif\" font-size=\"86\" font-weight=\"700\">{title}</text>
-<foreignObject x=\"130\" y=\"440\" width=\"820\" height=\"480\">
-  <div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"color:#ffffff;font-family:Arial,sans-serif;font-size:42px;line-height:1.35;\">{copy_text}</div>
-</foreignObject>
-<text x=\"130\" y=\"1620\" fill=\"#9ed8e2\" font-family=\"Arial, sans-serif\" font-size=\"28\">Prompt base:</text>
-<foreignObject x=\"130\" y=\"1658\" width=\"820\" height=\"120\">
-  <div xmlns=\"http://www.w3.org/1999/xhtml\" style=\"color:#d4edf2;font-family:Arial,sans-serif;font-size:24px;line-height:1.35;\">{prompt_excerpt}</div>
-</foreignObject>
+<circle cx=\"930\" cy=\"210\" r=\"240\" fill=\"{accent}\" fill-opacity=\"0.18\"/>
+<circle cx=\"170\" cy=\"1540\" r=\"290\" fill=\"{accent_soft}\" fill-opacity=\"0.12\"/>
+<g opacity=\"0.12\" stroke=\"#ffffff\">
+  <line x1=\"80\" y1=\"140\" x2=\"1000\" y2=\"140\"/>
+  <line x1=\"80\" y1=\"1780\" x2=\"1000\" y2=\"1780\"/>
+  <line x1=\"140\" y1=\"100\" x2=\"140\" y2=\"1820\"/>
+  <line x1=\"940\" y1=\"100\" x2=\"940\" y2=\"1820\"/>
+</g>
+<rect x=\"78\" y=\"96\" width=\"924\" height=\"1728\" rx=\"42\" fill=\"url(#panel)\" stroke=\"#ffffff\" stroke-opacity=\"0.14\"/>
+<rect x=\"118\" y=\"140\" width=\"260\" height=\"42\" rx=\"21\" fill=\"{accent}\" fill-opacity=\"0.18\" stroke=\"{accent}\" stroke-opacity=\"0.35\"/>
+<text x=\"148\" y=\"169\" fill=\"{accent_soft}\" font-family=\"Arial, sans-serif\" font-size=\"24\" font-weight=\"700\">BLAST INFO &amp; TECH</text>
+<text x=\"120\" y=\"250\" fill=\"#ffffff\" font-family=\"Arial, sans-serif\" font-size=\"28\" font-weight=\"700\" letter-spacing=\"4\">GENERATED LOCAL ART</text>
+{_text_block(headline_lines, 120, 370, 92, 104, '#ffffff', '700')}
+<rect x=\"120\" y=\"720\" width=\"360\" height=\"8\" rx=\"4\" fill=\"{accent}\"/>
+{_text_block(copy_lines, 120, 790, 42, 54, '#d9ecff', '400')}
+<g transform=\"translate(120 1110)\">
+  <rect x=\"0\" y=\"0\" width=\"340\" height=\"128\" rx=\"24\" fill=\"#0a1426\" stroke=\"{accent}\" stroke-opacity=\"0.28\"/>
+  <text x=\"28\" y=\"44\" fill=\"{accent_soft}\" font-family=\"Arial, sans-serif\" font-size=\"22\" font-weight=\"700\">VISUAL FOCUS</text>
+  <text x=\"28\" y=\"88\" fill=\"#ffffff\" font-family=\"Arial, sans-serif\" font-size=\"34\" font-weight=\"700\">{escape(subject_label)}</text>
+</g>
+{_subject_art(subject, accent, accent_soft)}
+<g transform=\"translate(120 1550)\">
+  <rect x=\"0\" y=\"0\" width=\"840\" height=\"190\" rx=\"28\" fill=\"#091221\" fill-opacity=\"0.92\" stroke=\"#ffffff\" stroke-opacity=\"0.08\"/>
+  <text x=\"28\" y=\"40\" fill=\"{accent_soft}\" font-family=\"Arial, sans-serif\" font-size=\"22\" font-weight=\"700\">PROMPT SNAPSHOT</text>
+  {_text_block(prompt_lines, 28, 86, 28, 34, '#cae6f7', '400')}
+</g>
 </svg>"""
     return svg.encode("utf-8")
 

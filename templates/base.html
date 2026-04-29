@@ -72,6 +72,7 @@
             border: 1px solid var(--border);
             border-radius: 18px;
             padding: 18px;
+            overflow: clip;
         }
 
         label { display: block; margin-bottom: 6px; font-weight: 600; }
@@ -83,6 +84,7 @@
             color: var(--text);
             padding: 12px 14px;
             font: inherit;
+            appearance: none;
         }
 
         textarea { resize: vertical; }
@@ -96,6 +98,14 @@
             align-items: center;
             justify-content: center;
             min-height: 46px;
+            border: none;
+            transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+            box-shadow: 0 10px 26px rgba(84, 220, 255, 0.14);
+        }
+
+        button:hover, .button-link:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 14px 28px rgba(84, 220, 255, 0.2);
         }
 
         .button-link.secondary,
@@ -103,6 +113,7 @@
             background: transparent;
             color: var(--text);
             border: 1px solid var(--border);
+            box-shadow: none;
         }
 
         .meta { color: var(--muted); font-size: 0.95rem; }
@@ -130,12 +141,20 @@
         .message.success { border-color: rgba(114, 247, 189, 0.35); color: var(--ok); }
         .message.error { border-color: rgba(255, 130, 130, 0.35); color: #ffb8b8; }
         .actions { display: flex; flex-wrap: wrap; gap: 10px; }
-        .actions > * { flex: 1 1 180px; }
+        .actions > * { flex: 0 1 auto; }
+        .actions.stretch > * { flex: 1 1 180px; }
         .preview {
             width: 100%;
             border-radius: 18px;
             border: 1px solid var(--border);
             background: rgba(255, 255, 255, 0.03);
+            display: block;
+        }
+        .preview-frame {
+            padding: 10px;
+            border-radius: 24px;
+            background: rgba(3, 8, 16, 0.54);
+            border: 1px solid rgba(173, 225, 255, 0.12);
         }
         .timeline { display: grid; gap: 14px; }
 
