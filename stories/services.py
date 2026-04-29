@@ -250,8 +250,9 @@ def generate_story_concept(
     prompt = _render_template(
         guide.copy_prompt_template,
         brand_name=guide.name,
-        brand_summary=guide.brand_summary,
-        visual_rules=guide.visual_rules,
+        visual_identity_prompt=guide.visual_identity_prompt,
+        brand_summary=guide.visual_identity_prompt,
+        visual_rules=guide.visual_identity_prompt,
         project_context=build_project_context(project=project, base_version=base_version),
         change_request=change_request or "Sem ajustes adicionais.",
     )
@@ -301,8 +302,9 @@ def refine_image_direction(
     prompt = _render_template(
         guide.copy_prompt_template,
         brand_name=guide.name,
-        brand_summary=guide.brand_summary,
-        visual_rules=guide.visual_rules,
+        visual_identity_prompt=guide.visual_identity_prompt,
+        brand_summary=guide.visual_identity_prompt,
+        visual_rules=guide.visual_identity_prompt,
         project_context=(
             f"Story aprovado para render de imagem.\n"
             f"Headline: {version.headline}\n"
@@ -398,8 +400,9 @@ def generate_image_asset(
     final_prompt = _render_template(
         guide.image_prompt_template,
         brand_name=guide.name,
-        brand_summary=guide.brand_summary,
-        visual_rules=guide.visual_rules,
+        visual_identity_prompt=guide.visual_identity_prompt,
+        brand_summary=guide.visual_identity_prompt,
+        visual_rules=guide.visual_identity_prompt,
         visual_direction=version.visual_direction or "Sem direcao visual.",
         image_prompt=version.image_prompt or "Sem prompt base.",
         change_request=change_request or "Sem ajustes adicionais.",

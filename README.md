@@ -8,7 +8,7 @@ Internal Django app for generating Instagram stories for `BLAST INFO & TECH` usi
 - Environment-based settings are configured.
 - Internal panel available at `/` and admin at `/admin/`.
 - Main story workflow is implemented for project creation, concept generation, image generation, regeneration, approval, download, and version history.
-- Brand guidance is stored as editable database content through the `BrandGuide` model.
+- Brand guidance is stored as editable database content through the `BrandGuide` model, with a single visual identity prompt for the BLAST direction.
 - When `OPENAI_API_KEY` is absent or the API fails, the app falls back to a local placeholder image preview so the workflow remains testable.
 
 ## MVP Goal
@@ -261,7 +261,49 @@ Safe default for this app:
 ./.venv/bin/python manage.py migrate
 ./.venv/bin/python manage.py createsuperuser
 ./.venv/bin/python manage.py runserver 0.0.0.0:8015
+./.venv/bin/python manage.py import_rss
 ```
+
+## RSS Setup From Zero
+1. Apply migrations:
+```bash
+./.venv/bin/python manage.py migrate
+```
+
+2. Open the admin and create one or more `NewsSource` entries:
+```text
+/admin/news/newssource/
+```
+
+3. For each source, fill at minimum:
+- `name`
+- `rss_url`
+- optional `site_url` and `description`
+- keep `is_active=True`
+
+4. Import the latest entries from all active feeds:
+```bash
+./.venv/bin/python manage.py import_rss --limit 20
+```
+
+5. Or import only one specific source by exact name:
+```bash
+./.venv/bin/python manage.py import_rss --source "The Verge" --limit 20
+```
+
+6. Review imported articles in admin:
+```text
+/admin/news/newsarticle/
+```
+
+7. Keep `is_curated=True` on the articles you want available in the story workflow.
+
+8. When creating a story of type `news`, select one curated article in the project form.
+
+Notes:
+- The importer updates existing articles by URL instead of duplicating them.
+- `NewsSource.last_fetched_at` and `NewsSource.last_error` show the last sync result.
+- The current importer uses `feedparser`, so no extra external RSS service is required.
 
 ## Notes
 - The project currently falls back to SQLite if `DATABASE_URL` is not set.

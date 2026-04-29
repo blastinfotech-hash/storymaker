@@ -2,23 +2,17 @@ from django.conf import settings
 from django.db import models
 
 
-DEFAULT_BRAND_SUMMARY = (
-    "BLAST INFO & TECH produz stories com foco em tecnologia, hardware, IA e cultura digital, "
-    "sempre com linguagem clara, forte contraste visual e leitura imediata em tela vertical."
-)
-
-DEFAULT_VISUAL_RULES = (
-    "Priorizar composição vertical 9:16, contraste alto, clima editorial-tech, tipografia marcante, "
-    "elemento principal único e legibilidade suficiente para sobreposição de texto de story."
+DEFAULT_VISUAL_IDENTITY_PROMPT = (
+    "BLAST INFO & TECH produz stories verticais 9:16 sobre tecnologia, hardware, IA e cultura digital. "
+    "A imagem deve ter energia editorial-tech, contraste alto, leitura imediata, clima premium, "
+    "tipografia forte quando houver texto sobreposto, composicao limpa com um elemento principal, "
+    "iluminacao dramatica, sem mockup de celular, sem marca d'agua, sem colagem confusa e sem excesso de elementos."
 )
 
 DEFAULT_COPY_PROMPT_TEMPLATE = """Voce esta criando um conceito de Instagram Story para {brand_name}.
 
-Guia da marca:
-{brand_summary}
-
-Regras visuais:
-{visual_rules}
+Guia visual da marca:
+{visual_identity_prompt}
 
 Contexto do projeto:
 {project_context}
@@ -38,11 +32,8 @@ O copy_text deve ser conciso, pronto para um unico story, em portugues do Brasil
 
 DEFAULT_IMAGE_PROMPT_TEMPLATE = """Crie a arte de um unico story vertical 9:16 para {brand_name}.
 
-Guia da marca:
-{brand_summary}
-
-Regras visuais:
-{visual_rules}
+Guia visual da marca:
+{visual_identity_prompt}
 
 Direcao visual aprovada:
 {visual_direction}
@@ -60,8 +51,7 @@ Evite marcas d'agua, mockups de celular, colagens confusas e texto pequeno ilegi
 class BrandGuide(models.Model):
     name = models.CharField(max_length=120, default=settings.BLAST_BRAND_NAME)
     is_active = models.BooleanField(default=True)
-    brand_summary = models.TextField(default=DEFAULT_BRAND_SUMMARY)
-    visual_rules = models.TextField(default=DEFAULT_VISUAL_RULES)
+    visual_identity_prompt = models.TextField(default=DEFAULT_VISUAL_IDENTITY_PROMPT)
     copy_prompt_template = models.TextField(default=DEFAULT_COPY_PROMPT_TEMPLATE)
     image_prompt_template = models.TextField(default=DEFAULT_IMAGE_PROMPT_TEMPLATE)
     created_at = models.DateTimeField(auto_now_add=True)

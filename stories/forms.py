@@ -39,10 +39,14 @@ class ChangeRequestForm(forms.Form):
 class ActiveBrandGuideForm(forms.ModelForm):
     class Meta:
         model = BrandGuide
-        fields = ["name", "brand_summary", "visual_rules", "copy_prompt_template", "image_prompt_template"]
+        fields = ["name", "visual_identity_prompt", "copy_prompt_template", "image_prompt_template"]
+        labels = {
+            "visual_identity_prompt": "Prompt de identidade visual",
+            "copy_prompt_template": "Template do conceito",
+            "image_prompt_template": "Template da imagem",
+        }
         widgets = {
-            "brand_summary": forms.Textarea(attrs={"rows": 4}),
-            "visual_rules": forms.Textarea(attrs={"rows": 6}),
+            "visual_identity_prompt": forms.Textarea(attrs={"rows": 8}),
             "copy_prompt_template": forms.Textarea(attrs={"rows": 10}),
             "image_prompt_template": forms.Textarea(attrs={"rows": 10}),
         }

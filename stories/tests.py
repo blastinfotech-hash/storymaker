@@ -47,8 +47,7 @@ class StoryWorkflowTests(TestCase):
             {
                 "action": "update_guide",
                 "guide-name": guide.name,
-                "guide-brand_summary": "Novo resumo da marca.",
-                "guide-visual_rules": "Usar notebook em close, luz dramatica e fundo escuro.",
+                "guide-visual_identity_prompt": "Usar notebook em close, luz dramatica e fundo escuro.",
                 "guide-copy_prompt_template": guide.copy_prompt_template,
                 "guide-image_prompt_template": guide.image_prompt_template,
             },
@@ -57,4 +56,4 @@ class StoryWorkflowTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         guide.refresh_from_db()
-        self.assertEqual(guide.brand_summary, "Novo resumo da marca.")
+        self.assertEqual(guide.visual_identity_prompt, "Usar notebook em close, luz dramatica e fundo escuro.")
