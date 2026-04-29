@@ -14,6 +14,10 @@ from .models import StoryProject, StoryVersion
 
 logger = logging.getLogger(__name__)
 
+
+class ImageGenerationError(Exception):
+    pass
+
 PALETTES = [
     ("#04111f", "#0e2a47", "#2de1fc", "#90f3ff"),
     ("#12081f", "#33215f", "#8d63ff", "#ded0ff"),
@@ -399,9 +403,9 @@ def generate_image_asset(
 
     client = _get_client()
     if client is None:
-        file_name = f"story-v{version.version_number or 'draft'}.svg"
-        note = "Imagem gerada localmente porque OPENAI_API_KEY nao esta configurada no ambiente atual."
-        return file_name, ContentFile(_placeholder_svg(version, final_prompt)), final_prompt, "placeholder-svg", note
+        raise ImageGenerationError(
+            "OPENAI_API_KEY nao esta configurada no processo atual do Django. A imagem nao foi gerada."
+        )
 
     try:
         result = client.images.generate(
@@ -415,6 +419,4 @@ def generate_image_asset(
         return file_name, ContentFile(raw_image), final_prompt, settings.OPENAI_IMAGE_MODEL, note
     except Exception as exc:
         logger.exception("Failed to generate image asset: %s", exc)
-        file_name = f"story-v{version.version_number or 'draft'}.svg"
-        note = "Imagem gerada localmente porque a chamada da API de imagem falhou. Verifique configuracao e logs."
-        return file_name, ContentFile(_placeholder_svg(version, final_prompt)), final_prompt, "placeholder-svg", note
+        raise ImageGenerationError(f"Falha na geracao da imagem pela OpenAI: {exc}") from exc

@@ -10,7 +10,7 @@ from branding.models import BrandGuide
 
 from .forms import ActiveBrandGuideForm, ChangeRequestForm, StoryProjectForm
 from .models import StoryProject, StoryVersion
-from .services import generate_image_asset, generate_story_concept, is_openai_configured, refine_image_direction
+from .services import ImageGenerationError, generate_image_asset, generate_story_concept, is_openai_configured, refine_image_direction
 
 
 def _base_generation_context():
@@ -110,8 +110,8 @@ def _create_image_version(
         version.generation_notes = refined["generation_notes"]
         version.text_model = refined["text_model"]
 
-    version.save()
     file_name, content, final_prompt, image_model, image_note = generate_image_asset(version, guide, change_request)
+    version.save()
     version.prompt_snapshot = final_prompt
     version.image_model = image_model
     version.generation_notes = image_note
@@ -165,9 +165,13 @@ def project_detail(request, pk: int):
             if not latest_version or not latest_version.has_concept:
                 messages.error(request, "Gere ou ajuste o conceito antes de renderizar a imagem.")
             else:
-                _create_image_version(project=project, guide=guide, base_version=latest_version)
-                messages.success(request, "Imagem gerada e salva no historico.")
-                return redirect("stories:project-detail", pk=project.pk)
+                try:
+                    _create_image_version(project=project, guide=guide, base_version=latest_version)
+                except ImageGenerationError as exc:
+                    messages.error(request, str(exc))
+                else:
+                    messages.success(request, "Imagem gerada e salva no historico.")
+                    return redirect("stories:project-detail", pk=project.pk)
 
         if action == "refine_image":
             image_form = ChangeRequestForm(request.POST, prefix="image")
@@ -175,14 +179,18 @@ def project_detail(request, pk: int):
                 if not latest_version or not latest_version.has_concept:
                     messages.error(request, "Gere um conceito antes de pedir ajustes na imagem.")
                 else:
-                    _create_image_version(
-                        project=project,
-                        guide=guide,
-                        base_version=latest_version,
-                        change_request=image_form.cleaned_data["change_request"],
-                    )
-                    messages.success(request, "Nova versao de imagem criada com os ajustes pedidos.")
-                    return redirect("stories:project-detail", pk=project.pk)
+                    try:
+                        _create_image_version(
+                            project=project,
+                            guide=guide,
+                            base_version=latest_version,
+                            change_request=image_form.cleaned_data["change_request"],
+                        )
+                    except ImageGenerationError as exc:
+                        messages.error(request, str(exc))
+                    else:
+                        messages.success(request, "Nova versao de imagem criada com os ajustes pedidos.")
+                        return redirect("stories:project-detail", pk=project.pk)
 
         if action == "approve":
             if not latest_version or not latest_version.has_image:

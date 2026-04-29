@@ -56,6 +56,7 @@
         .hero p { margin: 8px 0 0; color: var(--muted); max-width: 700px; }
         .grid { display: grid; gap: 20px; }
         .grid.two { grid-template-columns: 380px minmax(0, 1fr); }
+        .grid.sidebar-right { grid-template-columns: minmax(0, 1fr) 480px; align-items: start; }
         .panel {
             background: var(--panel);
             border: 1px solid var(--border);
@@ -180,6 +181,13 @@
             background: rgba(3, 8, 16, 0.54);
             border: 1px solid rgba(173, 225, 255, 0.12);
         }
+        .preview-empty {
+            min-height: 420px;
+            display: grid;
+            place-items: center;
+            text-align: center;
+            padding: 24px;
+        }
         .timeline { display: grid; gap: 14px; }
         .form-note {
             padding: 14px 16px;
@@ -196,6 +204,7 @@
 
         @media (max-width: 900px) {
             .grid.two { grid-template-columns: 1fr; }
+            .grid.sidebar-right { grid-template-columns: 1fr; }
             .hero { align-items: start; flex-direction: column; }
             .preview-asset { min-height: 280px; }
         }
