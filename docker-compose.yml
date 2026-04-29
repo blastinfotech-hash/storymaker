@@ -1,0 +1,37 @@
+services:
+  web:
+    build:
+      context: .
+    env_file:
+      - ${ENV_FILE:-.env}
+    command: sh -c 'gunicorn config.wsgi:application --bind 0.0.0.0:${APP_PORT:-8015}'
+    ports:
+      - "${APP_PORT:-8015}:${APP_PORT:-8015}"
+    volumes:
+      - ./media:/app/media
+      - ./staticfiles:/app/staticfiles
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+    env_file:
+      - ${ENV_FILE:-.env}
+    command: celery -A config worker --loglevel=info
+    depends_on:
+      - redis
+    volumes:
+      - ./media:/app/media
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+volumes:
+  redis_data:

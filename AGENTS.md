@@ -10,6 +10,7 @@
 - Start the dev server with `./.venv/bin/python manage.py runserver`.
 - Use `./.venv/bin/python manage.py check` for the fastest project sanity check.
 - Install dependencies with `./.venv/bin/pip install -r requirements.txt`.
+- Start the production-style stack with `docker compose up -d --build`.
 
 ## Repo Constraints
 - This project is being built for a BLAST INFO & TECH story/image generator. Visual-direction work must preserve the BLAST identity rules provided in the session and keep that guidance editable in-app rather than hardcoding it irreversibly.
@@ -18,5 +19,6 @@
 
 ## What Not To Assume
 - `README.md`, `.env.example`, and `requirements.txt` now exist and should stay aligned with real settings and commands.
+- `Dockerfile`, `docker-compose.yml`, and `docker/entrypoint.sh` now exist and should stay aligned with the actual deploy flow.
 - There is still no verified CI workflow, lint config, formatter config, or test suite. Do not invent repository commands; add them only when you also add the backing config.
 - Trust executable config over chat history once additional project files are added. Update this file when the repo gains real build/test/deploy sources of truth.
