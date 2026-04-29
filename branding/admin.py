@@ -1,3 +1,10 @@
 from django.contrib import admin
 
-# Register your models here.
+from .models import BrandGuide
+
+
+@admin.register(BrandGuide)
+class BrandGuideAdmin(admin.ModelAdmin):
+    list_display = ("name", "is_active", "updated_at")
+    list_filter = ("is_active",)
+    search_fields = ("name", "brand_summary", "visual_rules")

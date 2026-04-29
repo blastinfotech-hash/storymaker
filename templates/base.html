@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Storymaker{% endblock %}</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #07111f;
+            --panel: rgba(11, 24, 44, 0.9);
+            --panel-soft: rgba(18, 33, 61, 0.82);
+            --border: rgba(173, 225, 255, 0.16);
+            --text: #e8f4ff;
+            --muted: #98adc0;
+            --accent: #54dcff;
+            --accent-strong: #6a6cff;
+            --ok: #72f7bd;
+            --warn: #ffc96b;
+        }
+
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: Inter, Arial, sans-serif;
+            background:
+                radial-gradient(circle at top right, rgba(106, 108, 255, 0.22), transparent 28%),
+                radial-gradient(circle at bottom left, rgba(84, 220, 255, 0.18), transparent 22%),
+                var(--bg);
+            color: var(--text);
+        }
+
+        a { color: var(--accent); }
+        .shell {
+            width: min(1200px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 24px 0 48px;
+        }
+
+        .hero {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: end;
+            margin-bottom: 24px;
+        }
+
+        .hero h1 {
+            margin: 0;
+            font-size: clamp(2rem, 4vw, 3.2rem);
+            line-height: 1;
+        }
+
+        .hero p { margin: 8px 0 0; color: var(--muted); max-width: 700px; }
+        .grid { display: grid; gap: 20px; }
+        .grid.two { grid-template-columns: 380px minmax(0, 1fr); }
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 22px;
+            padding: 20px;
+            backdrop-filter: blur(18px);
+            box-shadow: 0 18px 55px rgba(0, 0, 0, 0.22);
+        }
+
+        .panel.soft { background: var(--panel-soft); }
+        .stack { display: grid; gap: 14px; }
+        .cards { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+        .card {
+            background: rgba(6, 16, 31, 0.78);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 18px;
+        }
+
+        label { display: block; margin-bottom: 6px; font-weight: 600; }
+        input, select, textarea, button {
+            width: 100%;
+            border-radius: 14px;
+            border: 1px solid rgba(179, 228, 255, 0.14);
+            background: rgba(8, 15, 28, 0.9);
+            color: var(--text);
+            padding: 12px 14px;
+            font: inherit;
+        }
+
+        textarea { resize: vertical; }
+        button, .button-link {
+            cursor: pointer;
+            background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+            color: #05101d;
+            font-weight: 700;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 46px;
+        }
+
+        .button-link.secondary,
+        button.secondary {
+            background: transparent;
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .meta { color: var(--muted); font-size: 0.95rem; }
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 12px;
+            border-radius: 999px;
+            background: rgba(84, 220, 255, 0.1);
+            border: 1px solid rgba(84, 220, 255, 0.18);
+            color: var(--accent);
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+
+        .messages { display: grid; gap: 10px; margin-bottom: 20px; }
+        .message {
+            padding: 14px 16px;
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            background: rgba(8, 15, 28, 0.82);
+        }
+
+        .message.success { border-color: rgba(114, 247, 189, 0.35); color: var(--ok); }
+        .message.error { border-color: rgba(255, 130, 130, 0.35); color: #ffb8b8; }
+        .actions { display: flex; flex-wrap: wrap; gap: 10px; }
+        .actions > * { flex: 1 1 180px; }
+        .preview {
+            width: 100%;
+            border-radius: 18px;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.03);
+        }
+        .timeline { display: grid; gap: 14px; }
+
+        @media (max-width: 900px) {
+            .grid.two { grid-template-columns: 1fr; }
+            .hero { align-items: start; flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <div class="shell">
+        <div class="hero">
+            <div>
+                <div class="pill">BLAST INFO &amp; TECH</div>
+                <h1>{% block heading %}Storymaker{% endblock %}</h1>
+                <p>{% block hero_text %}Workflow interno para conceito, direcao visual e geracao de imagem de stories.{% endblock %}</p>
+            </div>
+            <a class="button-link secondary" href="/admin/">Admin</a>
+        </div>
+
+        {% if messages %}
+            <div class="messages">
+                {% for message in messages %}
+                    <div class="message {{ message.tags }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>

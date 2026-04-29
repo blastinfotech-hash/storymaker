@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard | Storymaker{% endblock %}
+{% block heading %}Painel de Stories{% endblock %}
+{% block hero_text %}Crie um projeto, gere o conceito com a identidade editavel da BLAST e avance para a renderizacao da imagem com historico versionado.{% endblock %}
+
+{% block content %}
+<div class="grid two">
+    <section class="panel stack">
+        <div>
+            <h2>Novo projeto</h2>
+            <p class="meta">O tipo define o contexto editorial. Para `news`, selecione uma noticia curada ja salva no banco.</p>
+        </div>
+
+        <form method="post" class="stack">
+            {% csrf_token %}
+            {% for field in form %}
+                <div>
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}<div class="meta">{{ field.errors|join:", " }}</div>{% endif %}
+                </div>
+            {% endfor %}
+            <button type="submit">Criar projeto</button>
+        </form>
+
+        <div class="card">
+            <h3>Guia ativo</h3>
+            <p><strong>{{ guide.name }}</strong></p>
+            <p class="meta">{{ guide.brand_summary }}</p>
+            <p class="meta">{{ guide.visual_rules }}</p>
+        </div>
+    </section>
+
+    <section class="stack">
+        <div class="panel soft">
+            <h2>Projetos recentes</h2>
+            <p class="meta">Cada acao relevante cria uma nova versao para preservar o historico de conceito e imagem.</p>
+        </div>
+
+        <div class="cards">
+            {% for project in projects %}
+                <article class="card stack">
+                    <div class="actions" style="justify-content: space-between;">
+                        <span class="pill">{{ project.get_status_display }}</span>
+                        <span class="pill">{{ project.get_story_type_display }}</span>
+                    </div>
+                    <div>
+                        <h3 style="margin-bottom: 8px;">{{ project.title }}</h3>
+                        <p class="meta">Criado em {{ project.created_at|date:"d/m/Y H:i" }}</p>
+                        {% if project.source_article %}
+                            <p class="meta">Noticia: {{ project.source_article.title }}</p>
+                        {% endif %}
+                    </div>
+                    <p>{{ project.user_request|default:"Sem briefing adicional."|truncatechars:180 }}</p>
+                    <a class="button-link" href="{% url 'stories:project-detail' project.pk %}">Abrir workflow</a>
+                </article>
+            {% empty %}
+                <div class="panel">
+                    <p>Nenhum projeto criado ainda.</p>
+                </div>
+            {% endfor %}
+        </div>
+    </section>
+</div>
+{% endblock %}

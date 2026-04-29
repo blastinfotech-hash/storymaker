@@ -6,8 +6,10 @@ Internal Django app for generating Instagram stories for `BLAST INFO & TECH` usi
 - Project bootstrap is ready.
 - Django apps created: `core`, `branding`, `news`, `stories`.
 - Environment-based settings are configured.
-- Current URL available by default: `/admin/`.
-- The story generation flow itself is still to be implemented.
+- Internal panel available at `/` and admin at `/admin/`.
+- Main story workflow is implemented for project creation, concept generation, image generation, regeneration, approval, download, and version history.
+- Brand guidance is stored as editable database content through the `BrandGuide` model.
+- When `OPENAI_API_KEY` is absent or the API fails, the app falls back to a local placeholder image preview so the workflow remains testable.
 
 ## MVP Goal
 Build a VPS-hosted internal panel where you can:

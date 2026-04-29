@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.title }} | Storymaker{% endblock %}
+{% block heading %}{{ project.title }}{% endblock %}
+{% block hero_text %}Tipo {{ project.get_story_type_display }}. Gere conceito, aprove a direcao e registre cada nova imagem no historico do projeto.{% endblock %}
+
+{% block content %}
+<div class="grid two">
+    <section class="stack">
+        <div class="panel stack">
+            <div class="actions">
+                <a class="button-link secondary" href="{% url 'stories:dashboard' %}">Voltar</a>
+                <span class="pill">{{ project.get_status_display }}</span>
+            </div>
+            <div>
+                <h2>Resumo</h2>
+                <p class="meta">Criado em {{ project.created_at|date:"d/m/Y H:i" }}. Atualizado em {{ project.updated_at|date:"d/m/Y H:i" }}.</p>
+                <p>{{ project.user_request|default:"Sem briefing adicional." }}</p>
+                {% if project.source_article %}
+                    <div class="card">
+                        <h3>Noticia vinculada</h3>
+                        <p><strong>{{ project.source_article.title }}</strong></p>
+                        <p class="meta">{{ project.source_article.summary|default:project.source_article.url }}</p>
+                    </div>
+                {% endif %}
+            </div>
+
+            {% if latest_version %}
+                <div class="card stack">
+                    <div class="actions">
+                        <span class="pill">Versao atual v{{ latest_version.version_number }}</span>
+                        {% if latest_version.has_image %}
+                            <a class="button-link secondary" href="{% url 'stories:version-download' latest_version.pk %}">Baixar imagem</a>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <h3>{{ latest_version.headline|default:"Sem headline" }}</h3>
+                        <p>{{ latest_version.copy_text|linebreaksbr }}</p>
+                    </div>
+                    <div>
+                        <h4>Direcao visual</h4>
+                        <p class="meta">{{ latest_version.visual_direction|linebreaksbr }}</p>
+                    </div>
+                    <div>
+                        <h4>Prompt da imagem</h4>
+                        <p class="meta">{{ latest_version.image_prompt|linebreaksbr }}</p>
+                    </div>
+                    {% if latest_version.generated_image %}
+                        <img class="preview" src="{{ latest_version.generated_image.url }}" alt="Preview da versao {{ latest_version.version_number }}">
+                    {% endif %}
+                </div>
+            {% else %}
+                <div class="card">
+                    <p>Este projeto ainda nao tem versoes. Gere o primeiro conceito para iniciar.</p>
+                </div>
+            {% endif %}
+        </div>
+    </section>
+
+    <section class="stack">
+        <div class="panel stack">
+            <h2>Acoes do workflow</h2>
+
+            {% if not latest_version %}
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="generate_concept">
+                    <button type="submit">Gerar conceito inicial</button>
+                </form>
+            {% else %}
+                <form method="post" class="stack">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="refine_concept">
+                    {% for field in concept_form %}
+                        <div>
+                            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                            {{ field }}
+                        </div>
+                    {% endfor %}
+                    <button type="submit">Criar nova versao de conceito</button>
+                </form>
+
+                <form method="post" class="stack">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="generate_image">
+                    <button type="submit">Confirmar conceito e gerar imagem</button>
+                </form>
+
+                <form method="post" class="stack">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="refine_image">
+                    {% for field in image_form %}
+                        <div>
+                            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                            {{ field }}
+                        </div>
+                    {% endfor %}
+                    <button type="submit">Regenerar imagem com ajuste</button>
+                </form>
+
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="approve">
+                    <button class="secondary" type="submit">Aprovar versao atual</button>
+                </form>
+            {% endif %}
+        </div>
+
+        <div class="panel soft stack">
+            <h2>Historico</h2>
+            <div class="timeline">
+                {% for version in versions %}
+                    <article class="card stack">
+                        <div class="actions">
+                            <span class="pill">v{{ version.version_number }}</span>
+                            <span class="meta">{{ version.created_at|date:"d/m/Y H:i" }}</span>
+                        </div>
+                        <div>
+                            <strong>{{ version.headline|default:"Sem headline" }}</strong>
+                            <p class="meta">{{ version.generation_notes|default:"Sem observacoes." }}</p>
+                        </div>
+                        {% if version.change_request %}
+                            <div>
+                                <h4>Pedido</h4>
+                                <p class="meta">{{ version.change_request|linebreaksbr }}</p>
+                            </div>
+                        {% endif %}
+                        <div>
+                            <h4>Copy</h4>
+                            <p>{{ version.copy_text|default:"-"|linebreaksbr }}</p>
+                        </div>
+                        <div>
+                            <h4>Direcao</h4>
+                            <p class="meta">{{ version.visual_direction|default:"-"|linebreaksbr }}</p>
+                        </div>
+                        {% if version.generated_image %}
+                            <img class="preview" src="{{ version.generated_image.url }}" alt="Imagem da versao {{ version.version_number }}">
+                            <a class="button-link secondary" href="{% url 'stories:version-download' version.pk %}">Baixar esta versao</a>
+                        {% endif %}
+                    </article>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}
