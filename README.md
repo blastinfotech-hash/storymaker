@@ -98,6 +98,10 @@ DEBUG=False
 ALLOWED_HOSTS=your-domain.com,www.your-domain.com
 CSRF_TRUSTED_ORIGINS=https://your-domain.com,https://www.your-domain.com
 APP_PORT=8015
+USE_X_FORWARDED_HOST=True
+USE_X_FORWARDED_PORT=True
+SESSION_COOKIE_SECURE=True
+CSRF_COOKIE_SECURE=True
 DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DATABASE
 REDIS_URL=redis://redis:6379/0
 CELERY_BROKER_URL=redis://redis:6379/0
@@ -144,6 +148,40 @@ git pull
 docker compose up -d --build
 ```
 
+## Easypanel Fix For `DisallowedHost`
+If you see this error:
+
+```text
+Invalid HTTP_HOST header
+```
+
+your environment is missing the public host used by Easypanel.
+
+Use values like these in the app environment:
+
+```env
+DEBUG=False
+ALLOWED_HOSTS=blast-storymaker.0ksds9.easypanel.host
+CSRF_TRUSTED_ORIGINS=https://blast-storymaker.0ksds9.easypanel.host
+USE_X_FORWARDED_HOST=True
+USE_X_FORWARDED_PORT=True
+SESSION_COOKIE_SECURE=True
+CSRF_COOKIE_SECURE=True
+```
+
+If you also attach a custom domain, include both hosts:
+
+```env
+ALLOWED_HOSTS=blast-storymaker.0ksds9.easypanel.host,seu-dominio.com,www.seu-dominio.com
+CSRF_TRUSTED_ORIGINS=https://blast-storymaker.0ksds9.easypanel.host,https://seu-dominio.com,https://www.seu-dominio.com
+```
+
+Then restart the app:
+
+```bash
+docker compose up -d --build
+```
+
 ## VPS Quick Command List
 ```bash
 cp .env.example .env
@@ -169,6 +207,10 @@ Main variables:
 - `ALLOWED_HOSTS`: comma-separated hosts
 - `CSRF_TRUSTED_ORIGINS`: comma-separated origins with protocol
 - `APP_PORT`: safe default is `8015`
+- `USE_X_FORWARDED_HOST`: keep `True` behind Easypanel or another reverse proxy
+- `USE_X_FORWARDED_PORT`: keep `True` behind Easypanel or another reverse proxy
+- `SESSION_COOKIE_SECURE`: use `True` in production with HTTPS
+- `CSRF_COOKIE_SECURE`: use `True` in production with HTTPS
 - `DATABASE_URL`: use your VPS Postgres URL here
 - `REDIS_URL`: Redis connection string for Celery
 - `OPENAI_API_KEY`: OpenAI API key

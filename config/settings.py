@@ -25,6 +25,12 @@ DEBUG = env_bool("DEBUG", default=True)
 
 ALLOWED_HOSTS = env_list("ALLOWED_HOSTS", "localhost,127.0.0.1")
 CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")
+USE_X_FORWARDED_HOST = env_bool("USE_X_FORWARDED_HOST", default=True)
+USE_X_FORWARDED_PORT = env_bool("USE_X_FORWARDED_PORT", default=True)
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+SESSION_COOKIE_SECURE = env_bool("SESSION_COOKIE_SECURE", default=not DEBUG)
+CSRF_COOKIE_SECURE = env_bool("CSRF_COOKIE_SECURE", default=not DEBUG)
 
 
 # Application definition
