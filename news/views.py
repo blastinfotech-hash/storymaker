@@ -1,16 +1,57 @@
+from urllib.parse import urlparse
+
 from django.contrib import messages
 from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect, render
 
-from .forms import NewsSourceForm
+from .forms import BulkNewsSourceForm, NewsSourceForm
 from .models import NewsArticle, NewsSource
 from .services import import_active_sources, import_source_articles
+
+
+def _parse_bulk_sources(blob: str) -> list[dict]:
+    parsed_sources = []
+    for raw_line in blob.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+
+        parts = [part.strip() for part in line.split("|")]
+        if len(parts) == 1:
+            rss_url = parts[0]
+            host = urlparse(rss_url).netloc.replace("www.", "")
+            name = host or rss_url
+            site_url = ""
+            description = ""
+        elif len(parts) == 2:
+            name, rss_url = parts
+            site_url = ""
+            description = ""
+        elif len(parts) == 3:
+            name, rss_url, site_url = parts
+            description = ""
+        else:
+            name, rss_url, site_url, description = parts[0], parts[1], parts[2], " | ".join(parts[3:])
+
+        parsed_sources.append(
+            {
+                "name": name,
+                "rss_url": rss_url,
+                "site_url": site_url,
+                "description": description,
+                "is_active": True,
+            }
+        )
+    return parsed_sources
 
 
 def sources_panel(request, pk: int | None = None):
     editing_source = None
     if pk is not None:
         editing_source = get_object_or_404(NewsSource, pk=pk)
+
+    source_form = NewsSourceForm(instance=editing_source, prefix="source")
+    bulk_form = BulkNewsSourceForm(prefix="bulk")
 
     if request.method == "POST":
         action = request.POST.get("action")
@@ -23,8 +64,21 @@ def sources_panel(request, pk: int | None = None):
                 source = source_form.save()
                 messages.success(request, f"Fonte '{source.name}' salva com sucesso.")
                 return redirect("news:sources-panel")
-        else:
+
+        if action == "save_bulk_sources":
+            bulk_form = BulkNewsSourceForm(request.POST, prefix="bulk")
             source_form = NewsSourceForm(instance=editing_source, prefix="source")
+            if bulk_form.is_valid():
+                created_count = 0
+                updated_count = 0
+                for source_data in _parse_bulk_sources(bulk_form.cleaned_data["sources_blob"]):
+                    _, created = NewsSource.objects.update_or_create(rss_url=source_data["rss_url"], defaults=source_data)
+                    if created:
+                        created_count += 1
+                    else:
+                        updated_count += 1
+                messages.success(request, f"Importacao em massa concluida: {created_count} criadas, {updated_count} atualizadas.")
+                return redirect("news:sources-panel")
 
         if action == "toggle_source":
             source = get_object_or_404(NewsSource, pk=request.POST.get("source_id"))
@@ -68,9 +122,6 @@ def sources_panel(request, pk: int | None = None):
                     f"Importacao concluida: {total_created} criados, {total_updated} atualizados, {total_skipped} ignorados.",
                 )
             return redirect("news:sources-panel")
-    else:
-        source_form = NewsSourceForm(instance=editing_source, prefix="source")
-
     sources = NewsSource.objects.annotate(article_count=Count("articles")).order_by("name")
     return render(
         request,
@@ -78,6 +129,7 @@ def sources_panel(request, pk: int | None = None):
         {
             "sources": sources,
             "source_form": source_form,
+            "bulk_form": bulk_form,
             "editing_source": editing_source,
         },
     )

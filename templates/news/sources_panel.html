@@ -90,6 +90,23 @@
                 <a class="button-link secondary toolbar-link" href="{% url 'news:sources-panel' %}">Cancelar edicao</a>
             {% endif %}
         </div>
+
+        <div class="card stack">
+            <h2>Adicionar em massa</h2>
+            <p class="meta">Cole uma lista de feeds para criar ou atualizar varias fontes de uma unica vez.</p>
+            <form method="post" class="stack">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="save_bulk_sources">
+                {% for field in bulk_form %}
+                    <div>
+                        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.errors %}<div class="meta">{{ field.errors|join:", " }}</div>{% endif %}
+                    </div>
+                {% endfor %}
+                <button type="submit">Adicionar lista de feeds</button>
+            </form>
+        </div>
     </section>
 </div>
 {% endblock %}

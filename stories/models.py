@@ -23,6 +23,7 @@ class StoryProject(models.Model):
         blank=True,
         related_name="story_projects",
     )
+    equipment_configuration = models.TextField(blank=True)
     user_request = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -36,6 +37,22 @@ class StoryProject(models.Model):
     @property
     def latest_version(self):
         return self.versions.order_by("-version_number", "-created_at").first()
+
+    @property
+    def is_news_post(self) -> bool:
+        return self.story_type == self.StoryType.NEWS
+
+    @property
+    def target_dimensions(self) -> tuple[int, int]:
+        if self.is_news_post:
+            return (1080, 1350)
+        return (1080, 1920)
+
+    @property
+    def target_format_label(self) -> str:
+        if self.is_news_post:
+            return "Feed 4:5"
+        return "Story 9:16"
 
 
 class StoryVersion(models.Model):
@@ -51,6 +68,7 @@ class StoryVersion(models.Model):
     change_request = models.TextField(blank=True)
     headline = models.CharField(max_length=220, blank=True)
     copy_text = models.TextField(blank=True)
+    caption_text = models.TextField(blank=True)
     visual_direction = models.TextField(blank=True)
     image_prompt = models.TextField(blank=True)
     prompt_snapshot = models.TextField(blank=True)

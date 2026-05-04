@@ -16,3 +16,21 @@ class NewsSourceForm(forms.ModelForm):
             "rss_url": "URL do feed RSS",
             "is_active": "Fonte ativa",
         }
+
+
+class BulkNewsSourceForm(forms.Form):
+    sources_blob = forms.CharField(
+        label="Lista de fontes",
+        widget=forms.Textarea(
+            attrs={
+                "rows": 12,
+                "placeholder": (
+                    "Um feed por linha. Formatos aceitos:\n"
+                    "https://site.com/feed.xml\n"
+                    "Nome | https://site.com/feed.xml\n"
+                    "Nome | https://site.com/feed.xml | https://site.com\n"
+                    "Nome | https://site.com/feed.xml | https://site.com | Descricao"
+                ),
+            }
+        ),
+    )

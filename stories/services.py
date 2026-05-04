@@ -113,6 +113,8 @@ def build_project_context(project: StoryProject, base_version: StoryVersion | No
         f"Tipo de story: {project.get_story_type_display()}",
         f"Briefing do editor: {project.user_request or 'Sem briefing adicional.'}",
     ]
+    if project.equipment_configuration:
+        lines.append(f"Configuracao do equipamento: {project.equipment_configuration}")
     article_context = _article_context(project)
     if article_context:
         lines.append(article_context)
@@ -127,6 +129,77 @@ def build_project_context(project: StoryProject, base_version: StoryVersion | No
             ]
         )
     return "\n".join(lines)
+
+
+def _news_article_context(project: StoryProject) -> str:
+    article = project.source_article
+    if not article:
+        return "Sem noticia associada."
+    return "\n".join(
+        [
+            f"Titulo da noticia: {article.title}",
+            f"Resumo da noticia: {article.summary or 'Sem resumo.'}",
+            f"Conteudo da noticia: {article.content or 'Sem conteudo adicional.'}",
+            f"Fonte: {article.source.name if article.source else 'Fonte nao informada'}",
+            f"URL: {article.url}",
+        ]
+    )
+
+
+def _story_generation_prompt(
+    project: StoryProject,
+    guide: BrandGuide,
+    change_request: str,
+    base_version: StoryVersion | None = None,
+) -> str:
+    return _render_template(
+        guide.copy_prompt_template,
+        brand_name=guide.name,
+        visual_identity_prompt=guide.visual_identity_prompt,
+        brand_summary=guide.visual_identity_prompt,
+        visual_rules=guide.visual_identity_prompt,
+        project_context=build_project_context(project=project, base_version=base_version),
+        change_request=change_request or "Sem ajustes adicionais.",
+    )
+
+
+def _news_generation_prompt(
+    project: StoryProject,
+    guide: BrandGuide,
+    change_request: str,
+    base_version: StoryVersion | None = None,
+) -> str:
+    return f"""Voce esta criando um post de noticia para a BLAST INFO & TECH.
+
+Guia visual da marca:
+{guide.visual_identity_prompt}
+
+Noticia base:
+{_news_article_context(project)}
+
+Contexto do projeto:
+{build_project_context(project=project, base_version=base_version)}
+
+Direcionamento complementar do editor:
+{change_request or project.user_request or 'Sem direcionamento adicional.'}
+
+Regras obrigatorias:
+- Este fluxo e para noticia, nao para story promocional.
+- Gere a arte pensando em feed 4:5 e nao em story 9:16.
+- O texto da imagem deve ser criado principalmente com base na noticia.
+- O direcionamento do editor serve apenas como complemento.
+- Gere tambem uma legenda separada em portugues do Brasil com no maximo 500 caracteres.
+- A legenda deve ser informativa e pronta para publicacao.
+- Para noticia, o texto da imagem e a legenda nao podem ser identicos.
+
+Responda apenas em JSON valido com estas chaves:
+- headline
+- copy_text
+- caption_text
+- visual_direction
+- image_prompt
+- generation_notes
+"""
 
 
 def _strip_json_block(raw_text: str) -> str:
@@ -275,6 +348,11 @@ def _fallback_concept(
             base_copy
             or f"{seed}\nPanorama rapido para story da {settings.BLAST_BRAND_NAME}."
         ) + change_suffix,
+        "caption_text": (
+            (project.source_article.summary if project.source_article and project.source_article.summary else seed)[:500]
+            if project.story_type == StoryProject.StoryType.NEWS
+            else ""
+        ),
         "visual_direction": (
             direction
             or "Editorial tech com contraste alto, foco em um elemento principal e leitura imediata no formato 9:16."
@@ -298,14 +376,10 @@ def generate_story_concept(
     if client is None:
         return _fallback_concept(project=project, change_request=change_request, base_version=base_version)
 
-    prompt = _render_template(
-        guide.copy_prompt_template,
-        brand_name=guide.name,
-        visual_identity_prompt=guide.visual_identity_prompt,
-        brand_summary=guide.visual_identity_prompt,
-        visual_rules=guide.visual_identity_prompt,
-        project_context=build_project_context(project=project, base_version=base_version),
-        change_request=change_request or "Sem ajustes adicionais.",
+    prompt = (
+        _news_generation_prompt(project=project, guide=guide, change_request=change_request, base_version=base_version)
+        if project.story_type == StoryProject.StoryType.NEWS
+        else _story_generation_prompt(project=project, guide=guide, change_request=change_request, base_version=base_version)
     )
 
     try:
@@ -321,6 +395,7 @@ def generate_story_concept(
     return {
         "headline": data.get("headline", project.title),
         "copy_text": data.get("copy_text", "").strip(),
+        "caption_text": (data.get("caption_text", "")[:500]).strip() if project.story_type == StoryProject.StoryType.NEWS else "",
         "visual_direction": data.get("visual_direction", "").strip(),
         "image_prompt": data.get("image_prompt", "").strip(),
         "generation_notes": data.get("generation_notes", "Gerado pela API de texto.").strip(),
@@ -459,9 +534,15 @@ def generate_image_asset(
         change_request=change_request or "Sem ajustes adicionais.",
     )
     final_prompt += (
-        "\n\nA composicao deve reservar area limpa no rodape para aplicacao da logo oficial da BLAST "
-        "em pos-producao, centralizada e com boa respiracao visual."
+        "\n\nNao inserir logo, marca d'agua, assinatura ou selo institucional na arte final."
     )
+    if version.project.story_type == StoryProject.StoryType.NEWS:
+        final_prompt += (
+            "\n\nFormato obrigatorio: post de noticia em feed 4:5 pensado para 1080x1350. "
+            "A arte deve usar texto derivado da noticia e o briefing do usuario apenas como direcionamento extra."
+        )
+    else:
+        final_prompt += "\n\nFormato obrigatorio: story 9:16 pensado para 1080x1920, sem legenda separada."
 
     client = _get_client()
     if client is None:
@@ -475,11 +556,12 @@ def generate_image_asset(
             prompt=final_prompt,
             size=settings.OPENAI_IMAGE_SIZE,
         )
-        raw_image = _apply_brand_logo(base64.b64decode(result.data[0].b64_json))
+        raw_image = base64.b64decode(result.data[0].b64_json)
+        raw_image = _resize_to_target(raw_image, version.project.target_dimensions)
         file_name = f"story-v{version.version_number or 'draft'}.png"
         note = (
             f"Imagem gerada pela API da OpenAI com o modelo {settings.OPENAI_IMAGE_MODEL} "
-            f"no tamanho {settings.OPENAI_IMAGE_SIZE}, com logo oficial da BLAST aplicada automaticamente."
+            f"no tamanho final {version.project.target_dimensions[0]}x{version.project.target_dimensions[1]}, sem aplicacao automatica de logo."
         )
         return file_name, ContentFile(raw_image), final_prompt, settings.OPENAI_IMAGE_MODEL, note
     except Exception as exc:

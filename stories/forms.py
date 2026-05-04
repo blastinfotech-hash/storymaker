@@ -9,8 +9,9 @@ from .models import StoryProject
 class StoryProjectForm(forms.ModelForm):
     class Meta:
         model = StoryProject
-        fields = ["title", "story_type", "source_article", "user_request"]
+        fields = ["title", "story_type", "source_article", "equipment_configuration", "user_request"]
         widgets = {
+            "equipment_configuration": forms.Textarea(attrs={"rows": 5}),
             "user_request": forms.Textarea(attrs={"rows": 4}),
         }
 
@@ -23,8 +24,11 @@ class StoryProjectForm(forms.ModelForm):
         cleaned_data = super().clean()
         story_type = cleaned_data.get("story_type")
         source_article = cleaned_data.get("source_article")
+        equipment_configuration = cleaned_data.get("equipment_configuration")
         if story_type == StoryProject.StoryType.NEWS and not source_article:
             self.add_error("source_article", "Selecione uma noticia curada para stories do tipo news.")
+        if story_type == StoryProject.StoryType.PROMOTIONAL and not equipment_configuration:
+            self.add_error("equipment_configuration", "Informe a configuracao do equipamento para projetos promocionais.")
         return cleaned_data
 
 

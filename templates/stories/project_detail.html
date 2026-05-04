@@ -11,6 +11,7 @@
             <div class="actions">
                 <a class="button-link secondary toolbar-link" href="{% url 'stories:dashboard' %}">Voltar</a>
                 <span class="pill">{{ project.get_status_display }}</span>
+                <span class="pill">{{ project.target_format_label }}</span>
                 {% if openai_ready %}
                     <span class="pill ok">{{ openai_image_model }}</span>
                 {% else %}
@@ -21,6 +22,12 @@
                 <h2>Resumo</h2>
                 <p class="meta">Criado em {{ project.created_at|date:"d/m/Y H:i" }}. Atualizado em {{ project.updated_at|date:"d/m/Y H:i" }}.</p>
                 <p>{{ project.user_request|default:"Sem briefing adicional." }}</p>
+                {% if project.equipment_configuration %}
+                    <div class="card">
+                        <h3>Configuracao do equipamento</h3>
+                        <p class="meta">{{ project.equipment_configuration|linebreaksbr }}</p>
+                    </div>
+                {% endif %}
                 {% if project.source_article %}
                     <div class="card">
                         <h3>Noticia vinculada</h3>
@@ -45,6 +52,12 @@
                         <h3>{{ latest_version.headline|default:"Sem headline" }}</h3>
                         <p>{{ latest_version.copy_text|linebreaksbr }}</p>
                     </div>
+                    {% if project.is_news_post and latest_version.caption_text %}
+                        <div>
+                            <h4>Legenda</h4>
+                            <p class="meta">{{ latest_version.caption_text|linebreaksbr }}</p>
+                        </div>
+                    {% endif %}
                     <div>
                         <h4>Direcao visual</h4>
                         <p class="meta">{{ latest_version.visual_direction|linebreaksbr }}</p>
@@ -156,9 +169,15 @@
                             </div>
                         {% endif %}
                         <div>
-                            <h4>Copy</h4>
+                            <h4>Texto da imagem</h4>
                             <p>{{ version.copy_text|default:"-"|linebreaksbr }}</p>
                         </div>
+                        {% if version.project.is_news_post and version.caption_text %}
+                            <div>
+                                <h4>Legenda</h4>
+                                <p class="meta">{{ version.caption_text|linebreaksbr }}</p>
+                            </div>
+                        {% endif %}
                         <div>
                             <h4>Direcao</h4>
                             <p class="meta">{{ version.visual_direction|default:"-"|linebreaksbr }}</p>

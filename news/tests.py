@@ -74,3 +74,19 @@ class NewsImportTests(TestCase):
         self.assertEqual(response.status_code, 200)
         article.refresh_from_db()
         self.assertFalse(article.is_curated)
+
+    def test_creates_sources_in_bulk_from_panel(self):
+        response = self.client.post(
+            "/feeds/",
+            {
+                "action": "save_bulk_sources",
+                "bulk-sources_blob": (
+                    "The Verge | https://www.theverge.com/rss/index.xml | https://www.theverge.com\n"
+                    "https://techcrunch.com/feed/"
+                ),
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(NewsSource.objects.count(), 2)
