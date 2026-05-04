@@ -1,10 +1,13 @@
+from io import BytesIO
+
 from django.test import TestCase
 from django.urls import reverse
+from PIL import Image
 
 from branding.models import BrandGuide
 
-from .models import StoryProject
-from .services import generate_story_concept
+from .models import StoryProject, StoryVersion
+from .services import _apply_exact_text_overlay, generate_story_concept
 
 
 class StoryWorkflowTests(TestCase):
@@ -84,3 +87,23 @@ class StoryWorkflowTests(TestCase):
 
         self.assertIn("caption_text", concept)
         self.assertLessEqual(len(concept["caption_text"]), 500)
+
+    def test_applies_exact_text_overlay_without_changing_size(self):
+        project = StoryProject.objects.create(
+            title="Oferta notebook",
+            story_type=StoryProject.StoryType.PROMOTIONAL,
+            equipment_configuration="Ryzen 7, 16GB, SSD 1TB, R$ 4.999,00",
+        )
+        version = StoryVersion.objects.create(
+            project=project,
+            headline="OFERTA IMPERDIVEL",
+            copy_text="Notebook Ryzen 7, 16GB RAM, SSD 1TB. R$ 4.999,00 a vista.",
+        )
+        image = Image.new("RGB", (1080, 1920), (230, 230, 230))
+        buffer = BytesIO()
+        image.save(buffer, format="PNG")
+
+        output = _apply_exact_text_overlay(buffer.getvalue(), version)
+        final_image = Image.open(BytesIO(output))
+
+        self.assertEqual(final_image.size, (1080, 1920))

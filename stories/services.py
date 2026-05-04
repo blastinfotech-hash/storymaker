@@ -8,7 +8,7 @@ from html import escape
 from django.conf import settings
 from django.core.files.base import ContentFile
 from openai import OpenAI
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 from branding.models import BrandGuide
 
@@ -33,11 +33,92 @@ class _SafeTemplateDict(dict):
         return "{" + key + "}"
 
 
+def _load_font(size: int, bold: bool = False):
+    font_name = "DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf"
+    try:
+        return ImageFont.truetype(font_name, size=size)
+    except OSError:
+        return ImageFont.load_default()
+
+
+def _wrap_draw_text(draw: ImageDraw.ImageDraw, text: str, font, max_width: int) -> list[str]:
+    words = text.replace("\n", " \n ").split()
+    if not words:
+        return []
+
+    lines = []
+    current = []
+    for word in words:
+        if word == "\n":
+            if current:
+                lines.append(" ".join(current))
+                current = []
+            continue
+
+        candidate = " ".join(current + [word])
+        bbox = draw.textbbox((0, 0), candidate, font=font)
+        width = bbox[2] - bbox[0]
+        if width <= max_width or not current:
+            current.append(word)
+            continue
+        lines.append(" ".join(current))
+        current = [word]
+
+    if current:
+        lines.append(" ".join(current))
+    return lines
+
+
 def _resize_to_target(raw_image: bytes, target_size: tuple[int, int]) -> bytes:
     image = Image.open(BytesIO(raw_image)).convert("RGBA")
     resized = image.resize(target_size, Image.Resampling.LANCZOS)
     output = BytesIO()
     resized.convert("RGB").save(output, format="PNG", optimize=True)
+    return output.getvalue()
+
+
+def _apply_exact_text_overlay(raw_image: bytes, version: StoryVersion) -> bytes:
+    image = Image.open(BytesIO(raw_image)).convert("RGBA")
+    canvas = image.copy()
+    draw = ImageDraw.Draw(canvas, "RGBA")
+
+    width, height = canvas.size
+    is_news = version.project.story_type == StoryProject.StoryType.NEWS
+
+    top_panel_height = int(height * (0.2 if is_news else 0.22))
+    bottom_panel_height = int(height * (0.24 if is_news else 0.28))
+
+    draw.rounded_rectangle((36, 36, width - 36, 36 + top_panel_height), radius=28, fill=(255, 255, 255, 232))
+    draw.rounded_rectangle(
+        (36, height - bottom_panel_height - 36, width - 36, height - 36),
+        radius=28,
+        fill=(255, 255, 255, 236),
+    )
+
+    headline_font = _load_font(max(32, width // 11), bold=True)
+    body_font = _load_font(max(22, width // 32), bold=False)
+    price_font = _load_font(max(28, width // 24), bold=True)
+
+    headline_lines = _wrap_draw_text(draw, version.headline or version.project.title, headline_font, width - 120)
+    headline_y = 66
+    for line in headline_lines[:3]:
+        draw.text((60, headline_y), line.upper(), font=headline_font, fill=(110, 43, 195, 255))
+        bbox = draw.textbbox((60, headline_y), line.upper(), font=headline_font)
+        headline_y = bbox[3] + 10
+
+    body_text = version.copy_text or ""
+    body_lines = _wrap_draw_text(draw, body_text, body_font, width - 120)
+    body_y = height - bottom_panel_height - 4
+    for line in body_lines:
+        font = price_font if "R$" in line or "%" in line else body_font
+        draw.text((60, body_y), line, font=font, fill=(18, 0, 24, 255))
+        bbox = draw.textbbox((60, body_y), line, font=font)
+        body_y = bbox[3] + 10
+        if body_y > height - 90:
+            break
+
+    output = BytesIO()
+    canvas.convert("RGB").save(output, format="PNG", optimize=True)
     return output.getvalue()
 
 
@@ -494,6 +575,8 @@ def generate_image_asset(
     )
     final_prompt += (
         "\n\nNao inserir logo, marca d'agua, assinatura ou selo institucional na arte final."
+        " Gere apenas a base visual da composicao, sem texto legivel, sem numeros legiveis e sem precos renderizados,"
+        " porque o texto exato sera aplicado pelo sistema em pos-processamento."
     )
     if version.project.story_type == StoryProject.StoryType.NEWS:
         final_prompt += (
@@ -517,10 +600,11 @@ def generate_image_asset(
         )
         raw_image = base64.b64decode(result.data[0].b64_json)
         raw_image = _resize_to_target(raw_image, version.project.target_dimensions)
+        raw_image = _apply_exact_text_overlay(raw_image, version)
         file_name = f"story-v{version.version_number or 'draft'}.png"
         note = (
             f"Imagem gerada pela API da OpenAI com o modelo {settings.OPENAI_IMAGE_MODEL} "
-            f"no tamanho final {version.project.target_dimensions[0]}x{version.project.target_dimensions[1]}, sem aplicacao automatica de logo."
+            f"no tamanho final {version.project.target_dimensions[0]}x{version.project.target_dimensions[1]}, com texto aplicado localmente de forma exata."
         )
         return file_name, ContentFile(raw_image), final_prompt, settings.OPENAI_IMAGE_MODEL, note
     except Exception as exc:
