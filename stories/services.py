@@ -3,13 +3,12 @@ import hashlib
 import json
 import logging
 from io import BytesIO
-from pathlib import Path
 from html import escape
 
 from django.conf import settings
 from django.core.files.base import ContentFile
 from openai import OpenAI
-from PIL import Image, ImageStat
+from PIL import Image
 
 from branding.models import BrandGuide
 
@@ -34,51 +33,11 @@ class _SafeTemplateDict(dict):
         return "{" + key + "}"
 
 
-def _resolve_logo_path(preferred_path: str) -> Path | None:
-    path = Path(preferred_path)
-    if path.exists():
-        return path
-    return None
-
-
-def _pick_logo_path(image: Image.Image) -> Path | None:
-    footer_height = max(1, image.height // 5)
-    footer_box = (0, image.height - footer_height, image.width, image.height)
-    footer_region = image.crop(footer_box).convert("L")
-    brightness = ImageStat.Stat(footer_region).mean[0]
-
-    preferred = settings.BLAST_LOGO_PRIMARY_PATH if brightness > 150 else settings.BLAST_LOGO_LIGHT_PATH
-    fallback = settings.BLAST_LOGO_LIGHT_PATH if preferred == settings.BLAST_LOGO_PRIMARY_PATH else settings.BLAST_LOGO_PRIMARY_PATH
-    return _resolve_logo_path(preferred) or _resolve_logo_path(fallback)
-
-
-def _apply_brand_logo(raw_image: bytes) -> bytes:
+def _resize_to_target(raw_image: bytes, target_size: tuple[int, int]) -> bytes:
     image = Image.open(BytesIO(raw_image)).convert("RGBA")
-    logo_path = _pick_logo_path(image)
-    if logo_path is None:
-        return raw_image
-
-    logo = Image.open(logo_path).convert("RGBA")
-
-    max_logo_width = int(image.width * 0.44)
-    target_width = min(max_logo_width, logo.width)
-    scale = target_width / logo.width
-    target_height = max(1, int(logo.height * scale))
-    logo = logo.resize((target_width, target_height), Image.Resampling.LANCZOS)
-
-    margin_bottom = int(image.height * 0.045)
-    x = (image.width - logo.width) // 2
-    y = image.height - logo.height - margin_bottom
-
-    shadow = Image.new("RGBA", image.size, (0, 0, 0, 0))
-    shadow_alpha = logo.getchannel("A").point(lambda value: int(value * 0.24))
-    shadow.paste((0, 0, 0, 255), (x, y + 4), shadow_alpha)
-
-    composed = Image.alpha_composite(image, shadow)
-    composed.alpha_composite(logo, (x, y))
-
+    resized = image.resize(target_size, Image.Resampling.LANCZOS)
     output = BytesIO()
-    composed.convert("RGB").save(output, format="PNG", optimize=True)
+    resized.convert("RGB").save(output, format="PNG", optimize=True)
     return output.getvalue()
 
 
