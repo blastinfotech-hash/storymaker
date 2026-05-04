@@ -29,6 +29,10 @@ class StoryProjectForm(forms.ModelForm):
             self.add_error("source_article", "Selecione uma noticia curada para stories do tipo news.")
         if story_type == StoryProject.StoryType.PROMOTIONAL and not equipment_configuration:
             self.add_error("equipment_configuration", "Informe a configuracao do equipamento para projetos promocionais.")
+        if story_type != StoryProject.StoryType.NEWS:
+            cleaned_data["source_article"] = None
+        if story_type != StoryProject.StoryType.PROMOTIONAL:
+            cleaned_data["equipment_configuration"] = ""
         return cleaned_data
 
 

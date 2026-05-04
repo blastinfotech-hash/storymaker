@@ -5,9 +5,10 @@ from django.urls import reverse
 from PIL import Image
 
 from branding.models import BrandGuide
+from news.models import NewsArticle, NewsSource
 
 from .models import StoryProject, StoryVersion
-from .services import _apply_exact_text_overlay, generate_story_concept
+from .services import _apply_exact_text_overlay, build_project_context, generate_story_concept
 
 
 class StoryWorkflowTests(TestCase):
@@ -107,3 +108,44 @@ class StoryWorkflowTests(TestCase):
         final_image = Image.open(BytesIO(output))
 
         self.assertEqual(final_image.size, (1080, 1920))
+
+    def test_generic_context_ignores_linked_news_article(self):
+        source = NewsSource.objects.create(name="Tech", rss_url="https://example.com/rss")
+        article = NewsArticle.objects.create(
+            source=source,
+            title="IA supera medicos em triagem",
+            summary="Resumo medico",
+            url="https://example.com/news",
+        )
+        project = StoryProject.objects.create(
+            title="Tecnologia na saude",
+            story_type=StoryProject.StoryType.GENERIC,
+            source_article=article,
+            user_request="Visual editorial clean.",
+        )
+
+        context = build_project_context(project)
+
+        self.assertNotIn("IA supera medicos", context)
+        self.assertNotIn("Resumo medico", context)
+
+    def test_generic_fallback_concept_does_not_use_news_seed(self):
+        guide = BrandGuide.get_active()
+        source = NewsSource.objects.create(name="Tech", rss_url="https://example.com/rss")
+        article = NewsArticle.objects.create(
+            source=source,
+            title="IA supera medicos em triagem",
+            summary="Resumo medico",
+            url="https://example.com/news-2",
+        )
+        project = StoryProject.objects.create(
+            title="Tecnologia na saude",
+            story_type=StoryProject.StoryType.GENERIC,
+            source_article=article,
+            user_request="Visual editorial clean.",
+        )
+
+        concept = generate_story_concept(project=project, guide=guide)
+
+        self.assertIn("Tecnologia na saude", concept["copy_text"])
+        self.assertNotIn("IA supera medicos", concept["copy_text"])

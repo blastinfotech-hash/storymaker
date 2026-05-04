@@ -137,7 +137,7 @@ def is_openai_configured() -> bool:
 
 
 def _article_context(project: StoryProject) -> str:
-    if not project.source_article:
+    if project.story_type != StoryProject.StoryType.NEWS or not project.source_article:
         return ""
     article = project.source_article
     return (
@@ -183,6 +183,68 @@ def _news_article_context(project: StoryProject) -> str:
             f"Fonte: {article.source.name if article.source else 'Fonte nao informada'}",
             f"URL: {article.url}",
         ]
+    )
+
+
+def _concept_generation_prompt(
+    project: StoryProject,
+    guide: BrandGuide,
+    change_request: str,
+    base_version: StoryVersion | None = None,
+) -> str:
+    if project.story_type == StoryProject.StoryType.NEWS:
+        return _news_generation_prompt(project=project, guide=guide, change_request=change_request, base_version=base_version)
+
+    context = build_project_context(project=project, base_version=base_version)
+    extra_rules = [
+        "Responda apenas em JSON valido.",
+        "Para tipos nao jornalisticos, nao use noticia, artigo, materia ou contexto editorial externo.",
+    ]
+
+    if project.story_type == StoryProject.StoryType.GENERIC:
+        extra_rules.extend(
+            [
+                "O conceito deve ser generico, baseado apenas no titulo interno e no briefing do editor.",
+                "Nao trate o layout como anuncio de preco, noticia, dashboard, interface medica ou template com caixas vazias.",
+                "Prefira um unico foco visual forte e composicao limpa.",
+            ]
+        )
+    elif project.story_type == StoryProject.StoryType.PROMOTIONAL:
+        extra_rules.extend(
+            [
+                "O conceito promocional deve usar a configuracao do equipamento como base do conteudo.",
+                "Se houver preco ou especificacoes na configuracao, preserve isso no copy_text e na direcao visual.",
+            ]
+        )
+
+    return _render_template(
+        guide.copy_prompt_template,
+        brand_name=guide.name,
+        visual_identity_prompt=guide.visual_identity_prompt,
+        brand_summary=guide.visual_identity_prompt,
+        visual_rules=guide.visual_identity_prompt,
+        project_context=f"{context}\n\nRegras adicionais:\n- " + "\n- ".join(extra_rules),
+        change_request=change_request or "Sem ajustes adicionais.",
+    )
+
+
+def _image_prompt_suffix(version: StoryVersion) -> str:
+    if version.project.story_type == StoryProject.StoryType.NEWS:
+        return (
+            "Formato obrigatorio: post de noticia em feed 4:5 pensado para 1080x1350. "
+            "A arte deve usar texto derivado da noticia e o briefing do usuario apenas como direcionamento extra. "
+            "Evite visual de template com caixas vazias."
+        )
+    if version.project.story_type == StoryProject.StoryType.GENERIC:
+        return (
+            "Formato obrigatorio: story 9:16 pensado para 1080x1920. "
+            "Gerar uma composicao editorial limpa com um foco visual principal. "
+            "Nao usar noticia, artigo, interface clinica, dashboards, caixas vazias, placeholders, price cards ou paines laterais, "
+            "a menos que isso esteja explicitamente no briefing do usuario."
+        )
+    return (
+        "Formato obrigatorio: story 9:16 pensado para 1080x1920. "
+        "Como o tipo e promocional, a arte pode usar estrutura comercial clara, mas sem areas vazias ou caixas placeholder."
     )
 
 
@@ -380,7 +442,12 @@ def _fallback_concept(
     base_copy = base_version.copy_text if base_version else ""
     direction = base_version.visual_direction if base_version else ""
     prompt = base_version.image_prompt if base_version else ""
-    seed = project.source_article.title if project.source_article else project.title
+    if project.story_type == StoryProject.StoryType.NEWS and project.source_article:
+        seed = project.source_article.title
+    elif project.story_type == StoryProject.StoryType.PROMOTIONAL and project.equipment_configuration:
+        seed = project.equipment_configuration
+    else:
+        seed = project.title
     change_suffix = f" Ajuste solicitado: {change_request.strip()}" if change_request.strip() else ""
     return {
         "headline": project.title,
@@ -416,11 +483,7 @@ def generate_story_concept(
     if client is None:
         return _fallback_concept(project=project, change_request=change_request, base_version=base_version)
 
-    prompt = (
-        _news_generation_prompt(project=project, guide=guide, change_request=change_request, base_version=base_version)
-        if project.story_type == StoryProject.StoryType.NEWS
-        else _story_generation_prompt(project=project, guide=guide, change_request=change_request, base_version=base_version)
-    )
+    prompt = _concept_generation_prompt(project=project, guide=guide, change_request=change_request, base_version=base_version)
 
     try:
         response = client.responses.create(
@@ -578,13 +641,7 @@ def generate_image_asset(
         " Gere apenas a base visual da composicao, sem texto legivel, sem numeros legiveis e sem precos renderizados,"
         " porque o texto exato sera aplicado pelo sistema em pos-processamento."
     )
-    if version.project.story_type == StoryProject.StoryType.NEWS:
-        final_prompt += (
-            "\n\nFormato obrigatorio: post de noticia em feed 4:5 pensado para 1080x1350. "
-            "A arte deve usar texto derivado da noticia e o briefing do usuario apenas como direcionamento extra."
-        )
-    else:
-        final_prompt += "\n\nFormato obrigatorio: story 9:16 pensado para 1080x1920, sem legenda separada."
+    final_prompt += f"\n\n{_image_prompt_suffix(version)}"
 
     client = _get_client()
     if client is None:
