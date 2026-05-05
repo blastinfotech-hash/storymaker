@@ -54,7 +54,7 @@
         }
 
         .hero p { margin: 8px 0 0; color: var(--muted); max-width: 700px; }
-        .grid { display: grid; gap: 20px; }
+        .grid { display: grid; gap: 20px; align-items: start; }
         .grid.two { grid-template-columns: 380px minmax(0, 1fr); }
         .grid.sidebar-right { grid-template-columns: minmax(0, 1fr) 480px; align-items: start; }
         .panel {
@@ -67,7 +67,7 @@
         }
 
         .panel.soft { background: var(--panel-soft); }
-        .stack { display: grid; gap: 14px; }
+        .stack { display: grid; gap: 14px; align-content: start; }
         .stack.tight { gap: 10px; }
         .cards { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
         .card {
