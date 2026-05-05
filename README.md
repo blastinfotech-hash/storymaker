@@ -219,6 +219,8 @@ Main variables:
 - `OPENAI_TEXT_MODEL`: text model for copy generation
 - `OPENAI_IMAGE_MODEL`: image model for visual generation
 - `OPENAI_IMAGE_SIZE`: image size sent to OpenAI, default `1024x1792` for stories
+- `OPENAI_IMAGE_SIZE_STORY`: optional override for `generic` and `promotional`
+- `OPENAI_IMAGE_SIZE_NEWS`: optional override for `news`
 - `OPENAI_REQUEST_TIMEOUT`: timeout in seconds for OpenAI requests
 - `GUNICORN_TIMEOUT`: worker timeout in seconds for web requests
 

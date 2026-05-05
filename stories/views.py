@@ -112,8 +112,12 @@ def _create_image_version(
         version.generation_notes = refined["generation_notes"]
         version.text_model = refined["text_model"]
 
-    file_name, content, final_prompt, image_model, image_note = generate_image_asset(version, guide, change_request)
     version.save()
+    try:
+        file_name, content, final_prompt, image_model, image_note = generate_image_asset(version, guide, change_request)
+    except Exception:
+        version.delete()
+        raise
     version.prompt_snapshot = final_prompt
     version.image_model = image_model
     version.generation_notes = image_note
@@ -224,7 +228,10 @@ def download_version_image(request, version_id: int):
     version = get_object_or_404(StoryVersion.objects.select_related("project"), pk=version_id)
     if not version.generated_image:
         raise Http404("Esta versao nao possui imagem gerada.")
-    file_handle = default_storage.open(version.generated_image.name, "rb")
+    try:
+        file_handle = default_storage.open(version.generated_image.name, "rb")
+    except FileNotFoundError as exc:
+        raise Http404("O arquivo desta versao nao esta mais disponivel no storage.") from exc
     return FileResponse(file_handle, as_attachment=True, filename=version.generated_image.name.rsplit("/", 1)[-1])
 
 
@@ -232,6 +239,9 @@ def preview_version_image(request, version_id: int):
     version = get_object_or_404(StoryVersion.objects.select_related("project"), pk=version_id)
     if not version.generated_image:
         raise Http404("Esta versao nao possui imagem gerada.")
-    file_handle = default_storage.open(version.generated_image.name, "rb")
+    try:
+        file_handle = default_storage.open(version.generated_image.name, "rb")
+    except FileNotFoundError as exc:
+        raise Http404("O arquivo desta versao nao esta mais disponivel no storage.") from exc
     content_type, _ = mimetypes.guess_type(version.generated_image.name)
     return FileResponse(file_handle, content_type=content_type or "application/octet-stream")

@@ -78,16 +78,27 @@ class StoryWorkflowTests(TestCase):
 
     def test_news_concept_generates_caption_in_fallback(self):
         guide = BrandGuide.get_active()
+        source = NewsSource.objects.create(name="Portal Tech", rss_url="https://example.com/rss-news")
+        article = NewsArticle.objects.create(
+            source=source,
+            title="Nova linha de notebooks chega ao Brasil",
+            summary="Fabricantes anunciaram desempenho superior e melhor autonomia para trabalho remoto.",
+            url="https://example.com/noticia",
+            is_curated=True,
+        )
         project = StoryProject.objects.create(
             title="Nova linha de notebooks",
             story_type=StoryProject.StoryType.NEWS,
+            source_article=article,
             user_request="Usar tom mais premium.",
         )
 
         concept = generate_story_concept(project=project, guide=guide)
 
         self.assertIn("caption_text", concept)
-        self.assertLessEqual(len(concept["caption_text"]), 500)
+        self.assertLessEqual(len(concept["caption_text"]), 1000)
+        self.assertGreaterEqual(len(concept["caption_text"]), 180)
+        self.assertLessEqual(len(concept["copy_text"].split()), 6)
 
     def test_applies_exact_text_overlay_without_changing_size(self):
         project = StoryProject.objects.create(

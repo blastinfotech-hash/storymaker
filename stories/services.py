@@ -79,58 +79,149 @@ def _clamp_text(text: str, max_chars: int) -> str:
     return clipped.rstrip(" ,.;:-") + "..."
 
 
+def _limit_words(text: str, max_words: int) -> str:
+    words = [word for word in text.replace("\n", " ").split() if word]
+    if not words:
+        return ""
+    return " ".join(words[:max_words])
+
+
+def _normalize_news_image_text(text: str, fallback: str) -> str:
+    candidate = text or fallback
+    candidate = _limit_words(candidate, 6)
+    candidate = _clamp_text(candidate, 60)
+    return candidate or _limit_words(fallback, 6)
+
+
+def _build_news_caption(raw_caption: str, project: StoryProject) -> str:
+    article = project.source_article
+    base = " ".join((raw_caption or "").split())
+    details = []
+    if article:
+        details.append(article.title)
+        if article.summary:
+            details.append(article.summary)
+        if article.source and article.source.name:
+            details.append(f"Fonte: {article.source.name}.")
+        details.append(f"Leia mais: {article.url}")
+    else:
+        details.append(project.title)
+        if project.user_request:
+            details.append(project.user_request)
+
+    informative_tail = " ".join(item.strip() for item in details if item.strip())
+    if base:
+        caption = f"{base} {informative_tail}".strip()
+    else:
+        caption = informative_tail
+
+    caption = _clamp_text(caption, 1000)
+    if len(caption) < 180 and informative_tail:
+        caption = _clamp_text(f"{caption} {informative_tail}", 1000)
+    return caption
+
+
 def _resize_to_target(raw_image: bytes, target_size: tuple[int, int]) -> bytes:
     image = Image.open(BytesIO(raw_image)).convert("RGBA")
-    resized = image.resize(target_size, Image.Resampling.LANCZOS)
+    source_width, source_height = image.size
+    target_width, target_height = target_size
+
+    source_ratio = source_width / source_height
+    target_ratio = target_width / target_height
+
+    if source_ratio > target_ratio:
+        scaled_height = target_height
+        scaled_width = int(scaled_height * source_ratio)
+    else:
+        scaled_width = target_width
+        scaled_height = int(scaled_width / source_ratio)
+
+    resized = image.resize((scaled_width, scaled_height), Image.Resampling.LANCZOS)
+    left = max((scaled_width - target_width) // 2, 0)
+    top = max((scaled_height - target_height) // 2, 0)
+    cropped = resized.crop((left, top, left + target_width, top + target_height))
+
     output = BytesIO()
-    resized.convert("RGB").save(output, format="PNG", optimize=True)
+    cropped.convert("RGB").save(output, format="PNG", optimize=True)
     return output.getvalue()
 
 
 def _apply_exact_text_overlay(raw_image: bytes, version: StoryVersion) -> bytes:
+    story_type = version.project.story_type
+    if story_type == StoryProject.StoryType.GENERIC:
+        return raw_image
+
     image = Image.open(BytesIO(raw_image)).convert("RGBA")
     canvas = image.copy()
     draw = ImageDraw.Draw(canvas, "RGBA")
 
     width, height = canvas.size
-    is_news = version.project.story_type == StoryProject.StoryType.NEWS
+    if story_type == StoryProject.StoryType.NEWS:
+        title_font = _load_font(max(28, width // 24), bold=True)
+        chip_font = _load_font(max(24, width // 34), bold=True)
 
-    headline_font = _load_font(max(32, width // 11), bold=True)
-    body_font = _load_font(max(22, width // 32), bold=False)
-    price_font = _load_font(max(28, width // 24), bold=True)
+        title = _clamp_text(version.headline or version.project.title, 90)
+        title_lines = _wrap_draw_text(draw, title, title_font, width - 120)[:2]
+        image_text = _normalize_news_image_text(version.copy_text, fallback=title)
 
-    headline_lines = _wrap_draw_text(draw, version.headline or version.project.title, headline_font, width - 120)[: 2 if is_news else 3]
-    body_lines = _wrap_draw_text(draw, version.copy_text or "", body_font, width - 120)[: 3 if is_news else 5]
+        title_sample = draw.textbbox((0, 0), "Ag", font=title_font)
+        line_height = title_sample[3] - title_sample[1]
+        header_height = 24 + len(title_lines) * line_height + max(0, len(title_lines) - 1) * 8 + 24
 
-    headline_sample = draw.textbbox((0, 0), "AG", font=headline_font)
-    body_sample = draw.textbbox((0, 0), "Ag", font=body_font)
-    headline_height = headline_sample[3] - headline_sample[1]
-    body_height = body_sample[3] - body_sample[1]
+        draw.rounded_rectangle((32, 32, width - 32, 32 + header_height), radius=24, fill=(8, 14, 26, 182))
 
-    top_padding = 24
-    bottom_padding = 24
-    top_panel_height = top_padding * 2 + len(headline_lines) * headline_height + max(0, len(headline_lines) - 1) * 10
-    bottom_panel_height = bottom_padding * 2 + len(body_lines) * body_height + max(0, len(body_lines) - 1) * 10
+        y = 56
+        for line in title_lines:
+            draw.text((56, y), line, font=title_font, fill=(255, 255, 255, 245))
+            box = draw.textbbox((56, y), line, font=title_font)
+            y = box[3] + 8
 
-    draw.rounded_rectangle((36, 36, width - 36, 36 + top_panel_height), radius=28, fill=(255, 255, 255, 220))
-    draw.rounded_rectangle(
-        (36, height - bottom_panel_height - 36, width - 36, height - 36),
-        radius=28,
-        fill=(255, 255, 255, 228),
-    )
+        chip_text = image_text.upper()
+        chip_box = draw.textbbox((0, 0), chip_text, font=chip_font)
+        chip_width = (chip_box[2] - chip_box[0]) + 60
+        chip_height = (chip_box[3] - chip_box[1]) + 30
+        chip_x = 32
+        chip_y = height - chip_height - 32
+        draw.rounded_rectangle((chip_x, chip_y, chip_x + chip_width, chip_y + chip_height), radius=18, fill=(255, 255, 255, 230))
+        draw.text((chip_x + 30, chip_y + 15), chip_text, font=chip_font, fill=(11, 25, 42, 255))
+    else:
+        headline_font = _load_font(max(34, width // 22), bold=True)
+        body_font = _load_font(max(26, width // 34), bold=False)
+        price_font = _load_font(max(30, width // 28), bold=True)
 
-    headline_y = 36 + top_padding
-    for line in headline_lines:
-        draw.text((60, headline_y), line.upper(), font=headline_font, fill=(110, 43, 195, 255))
-        bbox = draw.textbbox((60, headline_y), line.upper(), font=headline_font)
-        headline_y = bbox[3] + 10
+        headline = _clamp_text(version.headline or version.project.title, 110)
+        headline_lines = _wrap_draw_text(draw, headline, headline_font, width - 120)[:2]
+        body_lines = _wrap_draw_text(draw, version.copy_text or "", body_font, width - 120)[:4]
 
-    body_y = height - bottom_panel_height - 36 + bottom_padding
-    for line in body_lines:
-        font = price_font if "R$" in line or "%" in line else body_font
-        draw.text((60, body_y), line, font=font, fill=(18, 0, 24, 255))
-        bbox = draw.textbbox((60, body_y), line, font=font)
-        body_y = bbox[3] + 10
+        headline_sample = draw.textbbox((0, 0), "AG", font=headline_font)
+        body_sample = draw.textbbox((0, 0), "Ag", font=body_font)
+        headline_height = headline_sample[3] - headline_sample[1]
+        body_height = body_sample[3] - body_sample[1]
+        panel_padding = 24
+        panel_height = (
+            panel_padding * 2
+            + len(headline_lines) * headline_height
+            + max(0, len(headline_lines) - 1) * 10
+            + 16
+            + len(body_lines) * body_height
+            + max(0, len(body_lines) - 1) * 8
+        )
+
+        panel_top = height - panel_height - 36
+        draw.rounded_rectangle((36, panel_top, width - 36, height - 36), radius=28, fill=(8, 14, 26, 210))
+
+        y = panel_top + panel_padding
+        for line in headline_lines:
+            draw.text((60, y), line.upper(), font=headline_font, fill=(255, 255, 255, 245))
+            box = draw.textbbox((60, y), line.upper(), font=headline_font)
+            y = box[3] + 10
+
+        y += 6
+        for line in body_lines:
+            font = price_font if "R$" in line or "%" in line else body_font
+            draw.text((60, y), line, font=font, fill=(214, 234, 248, 255))
+            box = draw.textbbox((60, y), line, font=font)
+            y = box[3] + 8
 
     output = BytesIO()
     canvas.convert("RGB").save(output, format="PNG", optimize=True)
@@ -249,7 +340,7 @@ def _image_prompt_suffix(version: StoryVersion) -> str:
             "Formato obrigatorio: post de noticia em feed 4:5 pensado para 1080x1350. "
             "A arte deve usar texto derivado da noticia e o briefing do usuario apenas como direcionamento extra. "
             "Nao criar placeholders, caixas vazias, cards de texto em branco, wireframes ou layouts com blocos reservados para texto. "
-            "Prefira uma unica imagem editorial forte, full-bleed, com area respirada natural para overlay de texto no topo e na base."
+            "Prefira uma unica imagem editorial forte, full-bleed, sem UI fake, sem mock de portal e sem paines informativos artificiais."
         )
     if version.project.story_type == StoryProject.StoryType.GENERIC:
         return (
@@ -305,9 +396,10 @@ Regras obrigatorias:
 - Este fluxo e para noticia, nao para story promocional.
 - Gere a arte pensando em feed 4:5 e nao em story 9:16.
 - O texto da imagem deve ser criado principalmente com base na noticia.
+- O texto da imagem deve ser curto e direto, com no maximo 6 palavras.
 - O direcionamento do editor serve apenas como complemento.
-- Gere tambem uma legenda separada em portugues do Brasil com no maximo 500 caracteres.
-- A legenda deve ser informativa e pronta para publicacao.
+- Gere tambem uma legenda separada em portugues do Brasil com no maximo 1000 caracteres.
+- A legenda deve ser informativa, contextualizada e pronta para publicacao.
 - Para noticia, o texto da imagem e a legenda nao podem ser identicos.
 
 Responda apenas em JSON valido com estas chaves:
@@ -467,17 +559,18 @@ def _fallback_concept(
     change_suffix = f" Ajuste solicitado: {change_request.strip()}" if change_request.strip() else ""
     return {
         "headline": project.title,
-        "copy_text": _clamp_text(
-            (project.source_article.title if project.story_type == StoryProject.StoryType.NEWS and project.source_article else (
-                (base_copy or f"{seed}\nPanorama rapido para story da {settings.BLAST_BRAND_NAME}.") + change_suffix
-            )),
-            110 if project.story_type == StoryProject.StoryType.NEWS else 240,
-        ),
-        "caption_text": (
-            _clamp_text(project.source_article.summary if project.source_article and project.source_article.summary else seed, 500)
+        "copy_text": (
+            _normalize_news_image_text(
+                text=project.source_article.title if project.story_type == StoryProject.StoryType.NEWS and project.source_article else "",
+                fallback=project.title,
+            )
             if project.story_type == StoryProject.StoryType.NEWS
-            else ""
+            else _clamp_text((base_copy or f"{seed}\nPanorama rapido para story da {settings.BLAST_BRAND_NAME}.") + change_suffix, 240)
         ),
+        "caption_text": _build_news_caption(
+            project.source_article.summary if project.source_article and project.source_article.summary else seed,
+            project,
+        ) if project.story_type == StoryProject.StoryType.NEWS else "",
         "visual_direction": (
             direction
             or "Editorial tech com contraste alto, foco em um elemento principal e leitura imediata no formato 9:16."
@@ -515,8 +608,16 @@ def generate_story_concept(
 
     return {
         "headline": data.get("headline", project.title),
-        "copy_text": _clamp_text(data.get("copy_text", "").strip(), 110 if project.story_type == StoryProject.StoryType.NEWS else 240),
-        "caption_text": _clamp_text(data.get("caption_text", "").strip(), 500) if project.story_type == StoryProject.StoryType.NEWS else "",
+        "copy_text": (
+            _normalize_news_image_text(data.get("copy_text", "").strip(), fallback=project.title)
+            if project.story_type == StoryProject.StoryType.NEWS
+            else _clamp_text(data.get("copy_text", "").strip(), 240)
+        ),
+        "caption_text": (
+            _build_news_caption(data.get("caption_text", "").strip(), project)
+            if project.story_type == StoryProject.StoryType.NEWS
+            else ""
+        ),
         "visual_direction": data.get("visual_direction", "").strip(),
         "image_prompt": data.get("image_prompt", "").strip(),
         "generation_notes": data.get("generation_notes", "Gerado pela API de texto.").strip(),
@@ -668,18 +769,25 @@ def generate_image_asset(
         )
 
     try:
+        requested_size = settings.OPENAI_IMAGE_SIZE
+        if version.project.story_type == StoryProject.StoryType.NEWS:
+            requested_size = getattr(settings, "OPENAI_IMAGE_SIZE_NEWS", settings.OPENAI_IMAGE_SIZE)
+        elif version.project.story_type in (StoryProject.StoryType.GENERIC, StoryProject.StoryType.PROMOTIONAL):
+            requested_size = getattr(settings, "OPENAI_IMAGE_SIZE_STORY", settings.OPENAI_IMAGE_SIZE)
+
         result = client.images.generate(
             model=settings.OPENAI_IMAGE_MODEL,
             prompt=final_prompt,
-            size=settings.OPENAI_IMAGE_SIZE,
+            size=requested_size,
         )
         raw_image = base64.b64decode(result.data[0].b64_json)
         raw_image = _resize_to_target(raw_image, version.project.target_dimensions)
         raw_image = _apply_exact_text_overlay(raw_image, version)
-        file_name = f"story-v{version.version_number or 'draft'}.png"
+        file_name = f"story-v{version.version_number}.png"
         note = (
             f"Imagem gerada pela API da OpenAI com o modelo {settings.OPENAI_IMAGE_MODEL} "
-            f"no tamanho final {version.project.target_dimensions[0]}x{version.project.target_dimensions[1]}, com texto aplicado localmente de forma exata."
+            f"(entrada {requested_size}) e ajustada para {version.project.target_dimensions[0]}x{version.project.target_dimensions[1]} "
+            f"sem distorcao, com texto aplicado localmente quando necessario."
         )
         return file_name, ContentFile(raw_image), final_prompt, settings.OPENAI_IMAGE_MODEL, note
     except Exception as exc:
