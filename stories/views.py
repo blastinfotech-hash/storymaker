@@ -10,7 +10,14 @@ from branding.models import BrandGuide
 
 from .forms import ChangeRequestForm, StoryProjectForm
 from .models import StoryProject, StoryVersion
-from .services import ImageGenerationError, generate_image_asset, generate_story_concept, is_openai_configured, refine_image_direction
+from .services import (
+    ConceptGenerationError,
+    ImageGenerationError,
+    generate_image_asset,
+    generate_story_concept,
+    is_openai_configured,
+    refine_image_direction,
+)
 
 
 def _base_generation_context():
@@ -132,21 +139,29 @@ def project_detail(request, pk: int):
         action = request.POST.get("action")
 
         if action == "generate_concept":
-            _create_concept_version(project=project, guide=guide)
-            messages.success(request, "Conceito gerado com sucesso.")
-            return redirect("stories:project-detail", pk=project.pk)
+            try:
+                _create_concept_version(project=project, guide=guide)
+            except ConceptGenerationError as exc:
+                messages.error(request, str(exc))
+            else:
+                messages.success(request, "Conceito gerado com sucesso.")
+                return redirect("stories:project-detail", pk=project.pk)
 
         if action == "refine_concept":
             concept_form = ChangeRequestForm(request.POST, prefix="concept")
             if concept_form.is_valid():
-                _create_concept_version(
-                    project=project,
-                    guide=guide,
-                    change_request=concept_form.cleaned_data["change_request"],
-                    base_version=latest_version,
-                )
-                messages.success(request, "Nova versao de conceito criada.")
-                return redirect("stories:project-detail", pk=project.pk)
+                try:
+                    _create_concept_version(
+                        project=project,
+                        guide=guide,
+                        change_request=concept_form.cleaned_data["change_request"],
+                        base_version=latest_version,
+                    )
+                except ConceptGenerationError as exc:
+                    messages.error(request, str(exc))
+                else:
+                    messages.success(request, "Nova versao de conceito criada.")
+                    return redirect("stories:project-detail", pk=project.pk)
 
         if action == "generate_image":
             if not latest_version or not latest_version.has_concept:

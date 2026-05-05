@@ -12,6 +12,7 @@ from openai import OpenAI
 from PIL import Image, ImageDraw, ImageFont
 
 from branding.models import BrandGuide
+from news.models import NewsArticle
 
 from .models import StoryProject, StoryVersion
 
@@ -19,6 +20,10 @@ logger = logging.getLogger(__name__)
 
 
 class ImageGenerationError(Exception):
+    pass
+
+
+class ConceptGenerationError(Exception):
     pass
 
 PALETTES = [
@@ -309,6 +314,7 @@ def _editorial_source_context(project: StoryProject) -> str:
                 f"Titulo do artigo: {article.title}",
                 f"Resumo do artigo: {article.summary or 'Sem resumo.'}",
                 f"Conteudo do artigo: {article.content or 'Sem conteudo adicional.'}",
+                f"Conteudo extraido do link: {_clamp_text(article.extracted_content or 'Sem extracao assincrona concluida.', 6000)}",
                 f"Fonte: {article.source.name if article.source else 'Fonte nao informada'}",
                 f"URL: {article.url}",
             ]
@@ -360,6 +366,30 @@ def _concept_generation_prompt(
         project_context=f"{context}\n\nRegras adicionais:\n- " + "\n- ".join(extra_rules),
         change_request=change_request or "Sem ajustes adicionais.",
     )
+
+
+def _ensure_news_source_context_quality(project: StoryProject) -> None:
+    if project.story_type != StoryProject.StoryType.NEWS:
+        return
+
+    article = project.source_article
+    if not article:
+        raise ConceptGenerationError("Selecione um artigo de origem para gerar notícia.")
+
+    if article.context_status == NewsArticle.ContextStatus.PENDING:
+        raise ConceptGenerationError(
+            "O artigo ainda esta em processamento assincrono de contexto. Aguarde alguns segundos e tente novamente."
+        )
+
+    if article.context_status == NewsArticle.ContextStatus.FAILED:
+        raise ConceptGenerationError(
+            "Falha ao analisar o link da noticia para contexto. Reimporte o feed ou escolha outro artigo."
+        )
+
+    if article.context_status != NewsArticle.ContextStatus.SUFFICIENT or article.context_char_count < 2000:
+        raise ConceptGenerationError(
+            "Contexto insuficiente para noticia de qualidade (minimo de 2000 caracteres). Escolha outro artigo."
+        )
 
 
 def _image_prompt_suffix(version: StoryVersion) -> str:
@@ -638,6 +668,8 @@ def generate_story_concept(
     change_request: str = "",
     base_version: StoryVersion | None = None,
 ) -> dict:
+    _ensure_news_source_context_quality(project)
+
     client = _get_client()
     if client is None:
         return _fallback_concept(project=project, change_request=change_request, base_version=base_version)

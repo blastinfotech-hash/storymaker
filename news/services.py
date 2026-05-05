@@ -1,12 +1,29 @@
 from dataclasses import dataclass
 from datetime import datetime
 from email.utils import parsedate_to_datetime
+import re
+from urllib.request import Request, urlopen
 
 import feedparser
 from django.db import transaction
 from django.utils import timezone
+from django.utils.html import strip_tags
 
 from .models import NewsArticle, NewsSource
+
+MIN_NEWS_CONTEXT_CHARS = 2000
+
+
+def _enqueue_article_enrichment(article: NewsArticle) -> None:
+    try:
+        from .tasks import enrich_article_context_task
+
+        enrich_article_context_task.apply_async(args=[article.pk], retry=False)
+    except Exception as exc:
+        article.context_status = NewsArticle.ContextStatus.FAILED
+        article.context_error = f"Fila de enriquecimento indisponivel: {exc}"
+        article.context_last_checked_at = timezone.now()
+        article.save(update_fields=["context_status", "context_error", "context_last_checked_at", "updated_at"])
 
 
 @dataclass
@@ -56,6 +73,65 @@ def _parse_published_at(entry):
     return None
 
 
+def _build_article_context(article: NewsArticle) -> str:
+    parts = [
+        article.title or "",
+        article.summary or "",
+        article.content or "",
+        article.extracted_content or "",
+    ]
+    return "\n".join(part.strip() for part in parts if part and part.strip())
+
+
+def _extract_main_text_from_html(html: str) -> str:
+    cleaned = re.sub(r"<script.*?>.*?</script>", " ", html, flags=re.IGNORECASE | re.DOTALL)
+    cleaned = re.sub(r"<style.*?>.*?</style>", " ", cleaned, flags=re.IGNORECASE | re.DOTALL)
+    cleaned = strip_tags(cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned
+
+
+def enrich_article_context(article: NewsArticle) -> NewsArticle:
+    try:
+        request = Request(
+            article.url,
+            headers={
+                "User-Agent": "StorymakerBot/1.0 (+https://blastinfoetech.com)",
+            },
+        )
+        with urlopen(request, timeout=15) as response:
+            raw_html = response.read().decode("utf-8", errors="ignore")
+        extracted = _extract_main_text_from_html(raw_html)
+        article.extracted_content = extracted
+
+        context = _build_article_context(article)
+        article.context_char_count = len(context)
+        article.context_status = (
+            NewsArticle.ContextStatus.SUFFICIENT
+            if article.context_char_count >= MIN_NEWS_CONTEXT_CHARS
+            else NewsArticle.ContextStatus.INSUFFICIENT
+        )
+        article.context_error = ""
+    except Exception as exc:
+        context = _build_article_context(article)
+        article.context_char_count = len(context)
+        article.context_status = NewsArticle.ContextStatus.FAILED
+        article.context_error = str(exc)
+
+    article.context_last_checked_at = timezone.now()
+    article.save(
+        update_fields=[
+            "extracted_content",
+            "context_char_count",
+            "context_status",
+            "context_last_checked_at",
+            "context_error",
+            "updated_at",
+        ]
+    )
+    return article
+
+
 @transaction.atomic
 def import_source_articles(source: NewsSource, limit: int | None = None) -> ImportResult:
     parsed_feed = feedparser.parse(source.rss_url)
@@ -87,6 +163,10 @@ def import_source_articles(source: NewsSource, limit: int | None = None) -> Impo
         }
 
         article, created = NewsArticle.objects.update_or_create(url=url, defaults=defaults)
+        article.context_status = NewsArticle.ContextStatus.PENDING
+        article.context_error = ""
+        article.save(update_fields=["context_status", "context_error", "updated_at"])
+        _enqueue_article_enrichment(article)
         if created:
             result.created += 1
         else:

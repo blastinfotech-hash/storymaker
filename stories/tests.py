@@ -8,7 +8,7 @@ from branding.models import BrandGuide
 from news.models import NewsArticle, NewsSource
 
 from .models import StoryProject, StoryVersion
-from .services import _apply_exact_text_overlay, build_project_context, generate_story_concept
+from .services import ConceptGenerationError, _apply_exact_text_overlay, build_project_context, generate_story_concept
 
 
 class StoryWorkflowTests(TestCase):
@@ -107,6 +107,9 @@ class StoryWorkflowTests(TestCase):
             source=source,
             title="Nova linha de notebooks chega ao Brasil",
             summary="Fabricantes anunciaram desempenho superior e melhor autonomia para trabalho remoto.",
+            extracted_content="a" * 2100,
+            context_char_count=2100,
+            context_status=NewsArticle.ContextStatus.SUFFICIENT,
             url="https://example.com/noticia",
             is_curated=True,
         )
@@ -124,6 +127,53 @@ class StoryWorkflowTests(TestCase):
         self.assertGreaterEqual(len(concept["caption_text"]), 180)
         self.assertLessEqual(len(concept["copy_text"].split()), 5)
         self.assertLessEqual(len(concept["headline"].split()), 5)
+
+    def test_news_concept_blocks_when_context_is_insufficient(self):
+        guide = BrandGuide.get_active()
+        source = NewsSource.objects.create(name="Portal", rss_url="https://example.com/rss-news")
+        article = NewsArticle.objects.create(
+            source=source,
+            title="Atualizacao curta",
+            summary="Resumo curto",
+            context_char_count=420,
+            context_status=NewsArticle.ContextStatus.INSUFFICIENT,
+            url="https://example.com/noticia-curta",
+            is_curated=True,
+        )
+        project = StoryProject.objects.create(
+            title="Atualizacao",
+            story_type=StoryProject.StoryType.NEWS,
+            source_article=article,
+        )
+
+        with self.assertRaises(ConceptGenerationError):
+            generate_story_concept(project=project, guide=guide)
+
+    def test_project_detail_shows_error_when_news_context_is_insufficient(self):
+        source = NewsSource.objects.create(name="Portal", rss_url="https://example.com/rss-news")
+        article = NewsArticle.objects.create(
+            source=source,
+            title="Atualizacao curta",
+            summary="Resumo curto",
+            context_char_count=420,
+            context_status=NewsArticle.ContextStatus.INSUFFICIENT,
+            url="https://example.com/noticia-curta-2",
+            is_curated=True,
+        )
+        project = StoryProject.objects.create(
+            title="Atualizacao",
+            story_type=StoryProject.StoryType.NEWS,
+            source_article=article,
+        )
+
+        response = self.client.post(
+            reverse("stories:project-detail", args=[project.pk]),
+            {"action": "generate_concept"},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Contexto insuficiente para noticia de qualidade")
 
     def test_applies_exact_text_overlay_without_changing_size(self):
         project = StoryProject.objects.create(

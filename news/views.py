@@ -104,7 +104,7 @@ def sources_panel(request, pk: int | None = None):
             else:
                 messages.success(
                     request,
-                    f"{source.name}: {result.created} criados, {result.updated} atualizados, {result.skipped} ignorados.",
+                    f"{source.name}: {result.created} criados, {result.updated} atualizados, {result.skipped} ignorados. Enriquecimento de contexto iniciado em segundo plano.",
                 )
             return redirect("news:sources-panel")
 
@@ -119,7 +119,7 @@ def sources_panel(request, pk: int | None = None):
                 total_skipped = sum(result.skipped for result in results)
                 messages.success(
                     request,
-                    f"Importacao concluida: {total_created} criados, {total_updated} atualizados, {total_skipped} ignorados.",
+                    f"Importacao concluida: {total_created} criados, {total_updated} atualizados, {total_skipped} ignorados. Contexto dos artigos sera analisado em segundo plano.",
                 )
             return redirect("news:sources-panel")
     sources = NewsSource.objects.annotate(article_count=Count("articles")).order_by("name")
