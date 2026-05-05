@@ -110,6 +110,7 @@ class StoryWorkflowTests(TestCase):
         self.assertLessEqual(len(concept["caption_text"]), 1000)
         self.assertGreaterEqual(len(concept["caption_text"]), 180)
         self.assertLessEqual(len(concept["copy_text"].split()), 6)
+        self.assertLessEqual(len(concept["headline"].split()), 6)
 
     def test_applies_exact_text_overlay_without_changing_size(self):
         project = StoryProject.objects.create(

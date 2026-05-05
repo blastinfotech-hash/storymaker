@@ -101,6 +101,13 @@ def _normalize_news_image_text(text: str, fallback: str) -> str:
     return candidate or _limit_words(fallback, 6)
 
 
+def _normalize_news_headline(text: str, fallback: str) -> str:
+    candidate = text or fallback
+    candidate = _limit_words(candidate, 6)
+    candidate = _clamp_text(candidate, 52)
+    return candidate or _clamp_text(fallback, 52)
+
+
 def _build_news_caption(raw_caption: str, project: StoryProject) -> str:
     article = project.source_article
     base = " ".join((raw_caption or "").split())
@@ -360,6 +367,8 @@ def _image_prompt_suffix(version: StoryVersion) -> str:
         return (
             "Formato obrigatorio: post de noticia em feed 4:5 pensado para 1080x1350. "
             "A arte deve usar texto derivado da noticia e o direcionamento adicional apenas como complemento. "
+            "Usar apenas os textos obrigatorios fornecidos no prompt final (headline e texto de apoio), sem inventar textos extras. "
+            "Limite total de texto na imagem: ate 12 palavras distribuidas no maximo em 2 blocos curtos. "
             "Nao criar placeholders, caixas vazias, cards de texto em branco, wireframes ou layouts com blocos reservados para texto. "
             "Prefira uma unica imagem editorial forte, full-bleed, sem UI fake, sem mock de portal e sem paines informativos artificiais."
         )
@@ -367,6 +376,7 @@ def _image_prompt_suffix(version: StoryVersion) -> str:
         return (
             "Formato obrigatorio: post institucional em feed 4:5 pensado para 1080x1350. "
             "Gerar composicao editorial limpa com foco visual principal e hierarquia clara de texto integrado a imagem. "
+            "Usar apenas os textos obrigatorios fornecidos no prompt final (headline e texto de apoio), sem inventar textos extras. "
             "Nao usar wireframe, UI fake, placeholders ou caixas vazias para preenchimento posterior."
         )
     return (
@@ -419,6 +429,7 @@ Regras obrigatorias:
 - Gere a arte pensando em feed 4:5.
 - O texto da imagem deve ser criado principalmente com base no artigo/texto de base.
 - Se o estilo for noticia, o texto da imagem deve ser curto e direto, com no maximo 6 palavras.
+- Se o estilo for noticia, a headline tambem deve ser curta, com no maximo 6 palavras.
 - O direcionamento do editor serve apenas como complemento.
 - Gere tambem uma legenda separada em portugues do Brasil com no maximo 1000 caracteres.
 - A legenda deve ser informativa, contextualizada e pronta para publicacao.
@@ -580,7 +591,14 @@ def _fallback_concept(
         seed = project.title
     change_suffix = f" Ajuste solicitado: {change_request.strip()}" if change_request.strip() else ""
     return {
-        "headline": project.title,
+        "headline": (
+            _normalize_news_headline(
+                text=project.source_article.title if project.story_type == StoryProject.StoryType.NEWS and project.source_article else project.title,
+                fallback=project.title,
+            )
+            if project.story_type == StoryProject.StoryType.NEWS
+            else project.title
+        ),
         "copy_text": (
             _normalize_news_image_text(
                 text=project.source_article.title if project.story_type == StoryProject.StoryType.NEWS and project.source_article else "",
@@ -633,7 +651,11 @@ def generate_story_concept(
         return _fallback_concept(project=project, change_request=change_request, base_version=base_version)
 
     return {
-        "headline": data.get("headline", project.title),
+        "headline": (
+            _normalize_news_headline(data.get("headline", "").strip(), fallback=project.title)
+            if project.story_type == StoryProject.StoryType.NEWS
+            else data.get("headline", project.title)
+        ),
         "copy_text": (
             _normalize_news_image_text(data.get("copy_text", "").strip(), fallback=project.title)
             if project.story_type == StoryProject.StoryType.NEWS
@@ -791,6 +813,10 @@ def generate_image_asset(
         f"- Headline: {version.headline or version.project.title}\n"
         f"- Texto de apoio: {version.copy_text or 'Sem texto de apoio'}"
     )
+    if version.project.story_type == StoryProject.StoryType.NEWS:
+        final_prompt += (
+            "\n\nPara noticia, manter texto compacto: headline em ate 2 linhas curtas e texto de apoio em 1 linha curta."
+        )
     final_prompt += f"\n\n{_image_prompt_suffix(version)}"
 
     client = _get_client()
