@@ -99,7 +99,16 @@ def import_source_articles(source: NewsSource, limit: int | None = None) -> Impo
 
 
 def import_active_sources(limit: int | None = None) -> list[ImportResult]:
+    active_sources = list(NewsSource.objects.filter(is_active=True).order_by("name"))
+    active_source_ids = [source.pk for source in active_sources]
+
+    if active_source_ids:
+        NewsArticle.objects.exclude(source_id__in=active_source_ids).delete()
+        NewsArticle.objects.filter(source_id__in=active_source_ids).delete()
+    else:
+        NewsArticle.objects.all().delete()
+
     results = []
-    for source in NewsSource.objects.filter(is_active=True).order_by("name"):
+    for source in active_sources:
         results.append(import_source_articles(source=source, limit=limit))
     return results

@@ -17,7 +17,7 @@
             </div>
             <div>
                 <h2>Novo projeto</h2>
-                <p class="meta">Notícia e Institucional usam artigo RSS ou texto personalizado. Promocional usa configuracao do equipamento.</p>
+                <p class="meta">Notícia usa artigo RSS. Institucional usa artigo RSS ou texto personalizado. Promocional usa configuração do equipamento.</p>
             </div>
 
             <form method="post" class="stack">
@@ -34,13 +34,13 @@
                     {% if form.story_type.errors %}<div class="meta">{{ form.story_type.errors|join:", " }}</div>{% endif %}
                 </div>
 
-                <div data-field-group="editorial">
+                <div data-field-group="article">
                     <label for="{{ form.source_article.id_for_label }}">{{ form.source_article.label }}</label>
                     {{ form.source_article }}
                     {% if form.source_article.errors %}<div class="meta">{{ form.source_article.errors|join:", " }}</div>{% endif %}
                 </div>
 
-                <div data-field-group="editorial">
+                <div data-field-group="institutional-custom">
                     <label for="{{ form.source_custom_text.id_for_label }}">{{ form.source_custom_text.label }}</label>
                     {{ form.source_custom_text }}
                     {% if form.source_custom_text.errors %}<div class="meta">{{ form.source_custom_text.errors|join:", " }}</div>{% endif %}
@@ -103,13 +103,19 @@
         const storyType = document.getElementById("id_story_type");
         if (!storyType) return;
 
-        const editorialGroups = document.querySelectorAll('[data-field-group="editorial"]');
+        const articleGroups = document.querySelectorAll('[data-field-group="article"]');
+        const institutionalCustomGroups = document.querySelectorAll('[data-field-group="institutional-custom"]');
         const promotionalGroups = document.querySelectorAll('[data-field-group="promotional"]');
 
         function syncVisibility() {
+            const isInstitutional = storyType.value === "institutional";
             const isPromotional = storyType.value === "promotional";
-            editorialGroups.forEach((node) => {
+
+            articleGroups.forEach((node) => {
                 node.style.display = isPromotional ? "none" : "block";
+            });
+            institutionalCustomGroups.forEach((node) => {
+                node.style.display = isInstitutional ? "block" : "none";
             });
             promotionalGroups.forEach((node) => {
                 node.style.display = isPromotional ? "block" : "none";

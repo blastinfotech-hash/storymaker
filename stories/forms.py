@@ -43,17 +43,22 @@ class StoryProjectForm(forms.ModelForm):
         source_article = cleaned_data.get("source_article")
         source_custom_text = (cleaned_data.get("source_custom_text") or "").strip()
         equipment_configuration = cleaned_data.get("equipment_configuration")
-        if story_type in {StoryProject.StoryType.NEWS, StoryProject.StoryType.INSTITUTIONAL}:
-            if not source_article and not source_custom_text:
-                self.add_error(
-                    "source_article",
-                    "Selecione um artigo de origem ou preencha um texto personalizado da base.",
-                )
+        if story_type == StoryProject.StoryType.NEWS and not source_article:
+            self.add_error("source_article", "Selecione um artigo de origem para posts de notícia.")
+
+        if story_type == StoryProject.StoryType.INSTITUTIONAL and not source_article and not source_custom_text:
+            self.add_error(
+                "source_article",
+                "Selecione um artigo de origem ou preencha um texto personalizado da base.",
+            )
         if story_type == StoryProject.StoryType.PROMOTIONAL and not equipment_configuration:
             self.add_error("equipment_configuration", "Informe a configuração do equipamento para projetos promocionais.")
 
         if story_type == StoryProject.StoryType.PROMOTIONAL:
             cleaned_data["source_article"] = None
+            cleaned_data["source_custom_text"] = ""
+
+        if story_type == StoryProject.StoryType.NEWS:
             cleaned_data["source_custom_text"] = ""
 
         if story_type in {StoryProject.StoryType.NEWS, StoryProject.StoryType.INSTITUTIONAL}:

@@ -96,16 +96,16 @@ def _limit_words(text: str, max_words: int) -> str:
 
 def _normalize_news_image_text(text: str, fallback: str) -> str:
     candidate = text or fallback
-    candidate = _limit_words(candidate, 6)
-    candidate = _clamp_text(candidate, 60)
-    return candidate or _limit_words(fallback, 6)
+    candidate = _limit_words(candidate, 5)
+    candidate = _clamp_text(candidate, 44)
+    return candidate or _limit_words(fallback, 5)
 
 
 def _normalize_news_headline(text: str, fallback: str) -> str:
     candidate = text or fallback
-    candidate = _limit_words(candidate, 6)
-    candidate = _clamp_text(candidate, 52)
-    return candidate or _clamp_text(fallback, 52)
+    candidate = _limit_words(candidate, 5)
+    candidate = _clamp_text(candidate, 44)
+    return candidate or _clamp_text(fallback, 44)
 
 
 def _build_news_caption(raw_caption: str, project: StoryProject) -> str:
@@ -368,7 +368,10 @@ def _image_prompt_suffix(version: StoryVersion) -> str:
             "Formato obrigatorio: post de noticia em feed 4:5 pensado para 1080x1350. "
             "A arte deve usar texto derivado da noticia e o direcionamento adicional apenas como complemento. "
             "Usar apenas os textos obrigatorios fornecidos no prompt final (headline e texto de apoio), sem inventar textos extras. "
-            "Limite total de texto na imagem: ate 12 palavras distribuidas no maximo em 2 blocos curtos. "
+            "Limite total de texto na imagem: ate 10 palavras distribuidas no maximo em 2 blocos curtos. "
+            "Nao usar tipografia gigante. Manter o texto em tamanho medio, legivel e proporcional ao layout. "
+            "Respeitar area segura: manter distancia minima de 10% das bordas laterais e 8% das bordas superior/inferior. "
+            "Nenhuma palavra pode encostar ou ser cortada na borda. "
             "Nao criar placeholders, caixas vazias, cards de texto em branco, wireframes ou layouts com blocos reservados para texto. "
             "Prefira uma unica imagem editorial forte, full-bleed, sem UI fake, sem mock de portal e sem paines informativos artificiais."
         )
@@ -428,8 +431,9 @@ Regras obrigatorias:
 - Este fluxo e editorial (noticia ou institucional), nao promocional.
 - Gere a arte pensando em feed 4:5.
 - O texto da imagem deve ser criado principalmente com base no artigo/texto de base.
-- Se o estilo for noticia, o texto da imagem deve ser curto e direto, com no maximo 6 palavras.
-- Se o estilo for noticia, a headline tambem deve ser curta, com no maximo 6 palavras.
+- Se o estilo for noticia, o texto da imagem deve ser curto e direto, com no maximo 5 palavras.
+- Se o estilo for noticia, a headline tambem deve ser curta, com no maximo 5 palavras.
+- Se o estilo for noticia, evitar palavras longas e evitar caixa alta total.
 - O direcionamento do editor serve apenas como complemento.
 - Gere tambem uma legenda separada em portugues do Brasil com no maximo 1000 caracteres.
 - A legenda deve ser informativa, contextualizada e pronta para publicacao.
@@ -816,6 +820,8 @@ def generate_image_asset(
     if version.project.story_type == StoryProject.StoryType.NEWS:
         final_prompt += (
             "\n\nPara noticia, manter texto compacto: headline em ate 2 linhas curtas e texto de apoio em 1 linha curta."
+            " Manter margens de seguranca, sem encostar nas bordas (minimo 10% laterais e 8% superior/inferior)."
+            " Nao usar fontes gigantes ou condensadas demais."
         )
     final_prompt += f"\n\n{_image_prompt_suffix(version)}"
 

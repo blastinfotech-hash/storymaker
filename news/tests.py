@@ -3,7 +3,7 @@ from unittest.mock import patch
 from django.test import TestCase
 
 from .models import NewsArticle, NewsSource
-from .services import import_source_articles
+from .services import import_active_sources, import_source_articles
 
 
 class NewsImportTests(TestCase):
@@ -90,3 +90,36 @@ class NewsImportTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(NewsSource.objects.count(), 2)
+
+    @patch("news.services.feedparser.parse")
+    def test_import_active_sources_replaces_old_articles_and_keeps_only_active(self, mock_parse):
+        active_source = NewsSource.objects.create(name="Ativa", rss_url="https://example.com/ativa.xml", is_active=True)
+        inactive_source = NewsSource.objects.create(name="Inativa", rss_url="https://example.com/inativa.xml", is_active=False)
+
+        NewsArticle.objects.create(source=active_source, title="Artigo antigo ativo", url="https://example.com/old-active")
+        NewsArticle.objects.create(source=inactive_source, title="Artigo antigo inativo", url="https://example.com/old-inactive")
+
+        mock_parse.return_value = type(
+            "ParsedFeed",
+            (),
+            {
+                "bozo": False,
+                "entries": [
+                    {
+                        "title": "Artigo novo",
+                        "link": "https://example.com/new-active",
+                        "summary": "Resumo",
+                        "id": "active-1",
+                        "published": "Tue, 29 Apr 2026 12:00:00 GMT",
+                    }
+                ],
+            },
+        )()
+
+        results = import_active_sources(limit=20)
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(NewsArticle.objects.count(), 1)
+        article = NewsArticle.objects.get()
+        self.assertEqual(article.url, "https://example.com/new-active")
+        self.assertEqual(article.source, active_source)

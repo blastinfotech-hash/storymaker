@@ -74,12 +74,25 @@ class StoryWorkflowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Informe a configuração do equipamento")
 
-    def test_editorial_requires_article_or_custom_text(self):
+    def test_news_requires_source_article(self):
         response = self.client.post(
             reverse("stories:dashboard"),
             {
                 "title": "Post de noticia",
                 "story_type": StoryProject.StoryType.NEWS,
+                "user_request": "Tom objetivo.",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Selecione um artigo de origem para posts de notícia")
+
+    def test_institutional_requires_article_or_custom_text(self):
+        response = self.client.post(
+            reverse("stories:dashboard"),
+            {
+                "title": "Post institucional",
+                "story_type": StoryProject.StoryType.INSTITUTIONAL,
                 "user_request": "Tom objetivo.",
             },
         )
@@ -109,8 +122,8 @@ class StoryWorkflowTests(TestCase):
         self.assertIn("caption_text", concept)
         self.assertLessEqual(len(concept["caption_text"]), 1000)
         self.assertGreaterEqual(len(concept["caption_text"]), 180)
-        self.assertLessEqual(len(concept["copy_text"].split()), 6)
-        self.assertLessEqual(len(concept["headline"].split()), 6)
+        self.assertLessEqual(len(concept["copy_text"].split()), 5)
+        self.assertLessEqual(len(concept["headline"].split()), 5)
 
     def test_applies_exact_text_overlay_without_changing_size(self):
         project = StoryProject.objects.create(
