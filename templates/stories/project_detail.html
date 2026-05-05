@@ -21,7 +21,7 @@
             <div>
                 <h2>Resumo</h2>
                 <p class="meta">Criado em {{ project.created_at|date:"d/m/Y H:i" }}. Atualizado em {{ project.updated_at|date:"d/m/Y H:i" }}.</p>
-                <p>{{ project.user_request|default:"Sem briefing adicional." }}</p>
+                <p>{{ project.user_request|default:"Sem direcionamento adicional." }}</p>
                 {% if project.equipment_configuration %}
                     <div class="card">
                         <h3>Configuracao do equipamento</h3>
@@ -30,9 +30,15 @@
                 {% endif %}
                 {% if project.source_article %}
                     <div class="card">
-                        <h3>Noticia vinculada</h3>
+                        <h3>Artigo de origem</h3>
                         <p><strong>{{ project.source_article.title }}</strong></p>
                         <p class="meta">{{ project.source_article.summary|default:project.source_article.url }}</p>
+                    </div>
+                {% endif %}
+                {% if project.source_custom_text %}
+                    <div class="card">
+                        <h3>Texto personalizado da base</h3>
+                        <p class="meta">{{ project.source_custom_text|linebreaksbr }}</p>
                     </div>
                 {% endif %}
             </div>
@@ -52,7 +58,7 @@
                         <h3>{{ latest_version.headline|default:"Sem headline" }}</h3>
                         <p>{{ latest_version.copy_text|linebreaksbr }}</p>
                     </div>
-                    {% if project.is_news_post and latest_version.caption_text %}
+                    {% if project.is_editorial_post and latest_version.caption_text %}
                         <div>
                             <h4>Legenda</h4>
                             <p class="meta">{{ latest_version.caption_text|linebreaksbr }}</p>
@@ -61,10 +67,6 @@
                     <div>
                         <h4>Direcao visual</h4>
                         <p class="meta">{{ latest_version.visual_direction|linebreaksbr }}</p>
-                    </div>
-                    <div>
-                        <h4>Prompt da imagem</h4>
-                        <p class="meta">{{ latest_version.image_prompt|linebreaksbr }}</p>
                     </div>
                     {% if latest_version.generated_image %}
                         <div class="preview-frame">
@@ -95,7 +97,7 @@
 
     <section class="stack">
         <div class="panel stack">
-            <h2>Acoes do workflow</h2>
+            <h2>Ações do workflow</h2>
 
             {% if not latest_version %}
                 <form method="post">
@@ -142,7 +144,6 @@
             {% endif %}
         </div>
 
-        {% include "stories/_brand_guide_form.html" %}
     </section>
 
     <section class="stack" style="grid-column: 1 / -1;">
@@ -172,7 +173,7 @@
                             <h4>Texto da imagem</h4>
                             <p>{{ version.copy_text|default:"-"|linebreaksbr }}</p>
                         </div>
-                        {% if version.project.is_news_post and version.caption_text %}
+                        {% if version.project.is_editorial_post and version.caption_text %}
                             <div>
                                 <h4>Legenda</h4>
                                 <p class="meta">{{ version.caption_text|linebreaksbr }}</p>

@@ -248,26 +248,36 @@ def is_openai_configured() -> bool:
     return bool(settings.OPENAI_API_KEY)
 
 
-def _article_context(project: StoryProject) -> str:
-    if project.story_type != StoryProject.StoryType.NEWS or not project.source_article:
+def _editorial_context(project: StoryProject) -> str:
+    if not project.is_editorial_post:
         return ""
-    article = project.source_article
-    return (
-        f"Noticia relacionada: {article.title}\n"
-        f"Resumo: {article.summary or article.content or 'Sem resumo salvo.'}\n"
-        f"URL: {article.url}"
-    )
+
+    parts = []
+    if project.source_article:
+        article = project.source_article
+        parts.append(
+            "\n".join(
+                [
+                    f"Artigo relacionado: {article.title}",
+                    f"Resumo: {article.summary or article.content or 'Sem resumo salvo.'}",
+                    f"URL: {article.url}",
+                ]
+            )
+        )
+    if project.source_custom_text:
+        parts.append(f"Texto personalizado de base: {project.source_custom_text}")
+    return "\n".join(parts)
 
 
 def build_project_context(project: StoryProject, base_version: StoryVersion | None = None) -> str:
     lines = [
         f"Titulo interno: {project.title}",
-        f"Tipo de story: {project.get_story_type_display()}",
-        f"Briefing do editor: {project.user_request or 'Sem briefing adicional.'}",
+        f"Tipo de postagem: {project.get_story_type_display()}",
+        f"Direcionamento adicional: {project.user_request or 'Sem direcionamento adicional.'}",
     ]
     if project.equipment_configuration:
         lines.append(f"Configuracao do equipamento: {project.equipment_configuration}")
-    article_context = _article_context(project)
+    article_context = _editorial_context(project)
     if article_context:
         lines.append(article_context)
     if base_version:
@@ -283,19 +293,24 @@ def build_project_context(project: StoryProject, base_version: StoryVersion | No
     return "\n".join(lines)
 
 
-def _news_article_context(project: StoryProject) -> str:
+def _editorial_source_context(project: StoryProject) -> str:
+    sections = []
     article = project.source_article
-    if not article:
-        return "Sem noticia associada."
-    return "\n".join(
-        [
-            f"Titulo da noticia: {article.title}",
-            f"Resumo da noticia: {article.summary or 'Sem resumo.'}",
-            f"Conteudo da noticia: {article.content or 'Sem conteudo adicional.'}",
-            f"Fonte: {article.source.name if article.source else 'Fonte nao informada'}",
-            f"URL: {article.url}",
-        ]
-    )
+    if article:
+        sections.extend(
+            [
+                f"Titulo do artigo: {article.title}",
+                f"Resumo do artigo: {article.summary or 'Sem resumo.'}",
+                f"Conteudo do artigo: {article.content or 'Sem conteudo adicional.'}",
+                f"Fonte: {article.source.name if article.source else 'Fonte nao informada'}",
+                f"URL: {article.url}",
+            ]
+        )
+    if project.source_custom_text:
+        sections.append(f"Texto personalizado de base: {project.source_custom_text}")
+    if not sections:
+        return "Sem artigo ou texto personalizado associado."
+    return "\n".join(sections)
 
 
 def _concept_generation_prompt(
@@ -304,8 +319,8 @@ def _concept_generation_prompt(
     change_request: str,
     base_version: StoryVersion | None = None,
 ) -> str:
-    if project.story_type == StoryProject.StoryType.NEWS:
-        return _news_generation_prompt(project=project, guide=guide, change_request=change_request, base_version=base_version)
+    if project.story_type in {StoryProject.StoryType.NEWS, StoryProject.StoryType.INSTITUTIONAL}:
+        return _editorial_generation_prompt(project=project, guide=guide, change_request=change_request, base_version=base_version)
 
     context = build_project_context(project=project, base_version=base_version)
     extra_rules = [
@@ -313,10 +328,10 @@ def _concept_generation_prompt(
         "Para tipos nao jornalisticos, nao use noticia, artigo, materia ou contexto editorial externo.",
     ]
 
-    if project.story_type == StoryProject.StoryType.GENERIC:
+    if project.story_type == StoryProject.StoryType.INSTITUTIONAL:
         extra_rules.extend(
             [
-                "O conceito deve ser generico, baseado apenas no titulo interno e no briefing do editor.",
+                "O conceito deve ser institucional, baseado no artigo/texto de base e no direcionamento adicional.",
                 "Nao trate o layout como anuncio de preco, noticia, dashboard, interface medica ou template com caixas vazias.",
                 "Prefira um unico foco visual forte e composicao limpa.",
             ]
@@ -344,16 +359,15 @@ def _image_prompt_suffix(version: StoryVersion) -> str:
     if version.project.story_type == StoryProject.StoryType.NEWS:
         return (
             "Formato obrigatorio: post de noticia em feed 4:5 pensado para 1080x1350. "
-            "A arte deve usar texto derivado da noticia e o briefing do usuario apenas como direcionamento extra. "
+            "A arte deve usar texto derivado da noticia e o direcionamento adicional apenas como complemento. "
             "Nao criar placeholders, caixas vazias, cards de texto em branco, wireframes ou layouts com blocos reservados para texto. "
             "Prefira uma unica imagem editorial forte, full-bleed, sem UI fake, sem mock de portal e sem paines informativos artificiais."
         )
-    if version.project.story_type == StoryProject.StoryType.GENERIC:
+    if version.project.story_type == StoryProject.StoryType.INSTITUTIONAL:
         return (
-            "Formato obrigatorio: story 9:16 pensado para 1080x1920. "
-            "Gerar uma composicao editorial limpa com um foco visual principal. "
-            "Nao usar noticia, artigo, interface clinica, dashboards, caixas vazias, placeholders, price cards ou paines laterais, "
-            "a menos que isso esteja explicitamente no briefing do usuario."
+            "Formato obrigatorio: post institucional em feed 4:5 pensado para 1080x1350. "
+            "Gerar composicao editorial limpa com foco visual principal e hierarquia clara de texto integrado a imagem. "
+            "Nao usar wireframe, UI fake, placeholders ou caixas vazias para preenchimento posterior."
         )
     return (
         "Formato obrigatorio: story 9:16 pensado para 1080x1920. "
@@ -379,19 +393,20 @@ def _story_generation_prompt(
     )
 
 
-def _news_generation_prompt(
+def _editorial_generation_prompt(
     project: StoryProject,
     guide: BrandGuide,
     change_request: str,
     base_version: StoryVersion | None = None,
 ) -> str:
-    return f"""Voce esta criando um post de noticia para a BLAST INFO & TECH.
+    estilo = "noticia" if project.story_type == StoryProject.StoryType.NEWS else "institucional"
+    return f"""Voce esta criando um post {estilo} para a BLAST INFO & TECH.
 
 Guia visual da marca:
 {guide.visual_identity_prompt}
 
-Noticia base:
-{_news_article_context(project)}
+Base editorial:
+{_editorial_source_context(project)}
 
 Contexto do projeto:
 {build_project_context(project=project, base_version=base_version)}
@@ -400,14 +415,14 @@ Direcionamento complementar do editor:
 {change_request or project.user_request or 'Sem direcionamento adicional.'}
 
 Regras obrigatorias:
-- Este fluxo e para noticia, nao para story promocional.
-- Gere a arte pensando em feed 4:5 e nao em story 9:16.
-- O texto da imagem deve ser criado principalmente com base na noticia.
-- O texto da imagem deve ser curto e direto, com no maximo 6 palavras.
+- Este fluxo e editorial (noticia ou institucional), nao promocional.
+- Gere a arte pensando em feed 4:5.
+- O texto da imagem deve ser criado principalmente com base no artigo/texto de base.
+- Se o estilo for noticia, o texto da imagem deve ser curto e direto, com no maximo 6 palavras.
 - O direcionamento do editor serve apenas como complemento.
 - Gere tambem uma legenda separada em portugues do Brasil com no maximo 1000 caracteres.
 - A legenda deve ser informativa, contextualizada e pronta para publicacao.
-- Para noticia, o texto da imagem e a legenda nao podem ser identicos.
+- O texto da imagem e a legenda nao podem ser identicos.
 
 Responda apenas em JSON valido com estas chaves:
 - headline
@@ -557,8 +572,8 @@ def _fallback_concept(
     base_copy = base_version.copy_text if base_version else ""
     direction = base_version.visual_direction if base_version else ""
     prompt = base_version.image_prompt if base_version else ""
-    if project.story_type == StoryProject.StoryType.NEWS and project.source_article:
-        seed = project.source_article.title
+    if project.story_type in {StoryProject.StoryType.NEWS, StoryProject.StoryType.INSTITUTIONAL}:
+        seed = project.source_article.title if project.source_article else (project.source_custom_text or project.title)
     elif project.story_type == StoryProject.StoryType.PROMOTIONAL and project.equipment_configuration:
         seed = project.equipment_configuration
     else:
@@ -572,15 +587,19 @@ def _fallback_concept(
                 fallback=project.title,
             )
             if project.story_type == StoryProject.StoryType.NEWS
-            else _clamp_text((base_copy or f"{seed}\nPanorama rapido para story da {settings.BLAST_BRAND_NAME}.") + change_suffix, 240)
+            else _clamp_text((base_copy or f"{seed}\nPanorama rapido para post da {settings.BLAST_BRAND_NAME}.") + change_suffix, 240)
         ),
-        "caption_text": _build_news_caption(
-            project.source_article.summary if project.source_article and project.source_article.summary else seed,
-            project,
-        ) if project.story_type == StoryProject.StoryType.NEWS else "",
+        "caption_text": (
+            _build_news_caption(
+                project.source_article.summary if project.source_article and project.source_article.summary else seed,
+                project,
+            )
+            if project.story_type in {StoryProject.StoryType.NEWS, StoryProject.StoryType.INSTITUTIONAL}
+            else ""
+        ),
         "visual_direction": (
             direction
-            or "Editorial tech com contraste alto, foco em um elemento principal e leitura imediata no formato 9:16."
+            or "Editorial tech com contraste alto, foco em um elemento principal e leitura imediata no formato solicitado."
         ) + change_suffix,
         "image_prompt": (
             prompt
@@ -622,7 +641,7 @@ def generate_story_concept(
         ),
         "caption_text": (
             _build_news_caption(data.get("caption_text", "").strip(), project)
-            if project.story_type == StoryProject.StoryType.NEWS
+            if project.story_type in {StoryProject.StoryType.NEWS, StoryProject.StoryType.INSTITUTIONAL}
             else ""
         ),
         "visual_direction": data.get("visual_direction", "").strip(),
@@ -763,9 +782,14 @@ def generate_image_asset(
         change_request=change_request or "Sem ajustes adicionais.",
     )
     final_prompt += (
-        "\n\nNao inserir logo, marca d'agua, assinatura ou selo institucional na arte final."
-        " Gere apenas a base visual da composicao, sem texto legivel, sem numeros legiveis e sem precos renderizados,"
-        " porque o texto exato sera aplicado pelo sistema em pos-processamento."
+        "\n\nNao inserir logo, marca d'agua, assinatura, nome da loja ou selo institucional na arte final."
+        " O texto deve ser gerado dentro da composicao visual, distribuido de forma natural e harmonica,"
+        " sem faixa exclusiva no rodape para concentrar todo o texto."
+    )
+    final_prompt += (
+        f"\n\nTextos obrigatorios na arte:\n"
+        f"- Headline: {version.headline or version.project.title}\n"
+        f"- Texto de apoio: {version.copy_text or 'Sem texto de apoio'}"
     )
     final_prompt += f"\n\n{_image_prompt_suffix(version)}"
 
@@ -777,9 +801,9 @@ def generate_image_asset(
 
     try:
         requested_size = settings.OPENAI_IMAGE_SIZE
-        if version.project.story_type == StoryProject.StoryType.NEWS:
+        if version.project.story_type in {StoryProject.StoryType.NEWS, StoryProject.StoryType.INSTITUTIONAL}:
             requested_size = getattr(settings, "OPENAI_IMAGE_SIZE_NEWS", settings.OPENAI_IMAGE_SIZE)
-        elif version.project.story_type in (StoryProject.StoryType.GENERIC, StoryProject.StoryType.PROMOTIONAL):
+        elif version.project.story_type == StoryProject.StoryType.PROMOTIONAL:
             requested_size = getattr(settings, "OPENAI_IMAGE_SIZE_STORY", settings.OPENAI_IMAGE_SIZE)
 
         result = client.images.generate(
@@ -789,12 +813,11 @@ def generate_image_asset(
         )
         raw_image = base64.b64decode(result.data[0].b64_json)
         raw_image = _resize_to_target(raw_image, version.project.target_dimensions)
-        raw_image = _apply_exact_text_overlay(raw_image, version)
         file_name = f"story-v{version.version_number}.png"
         note = (
             f"Imagem gerada pela API da OpenAI com o modelo {settings.OPENAI_IMAGE_MODEL} "
             f"(entrada {requested_size}) e ajustada para {version.project.target_dimensions[0]}x{version.project.target_dimensions[1]} "
-            f"sem distorcao, com texto aplicado localmente quando necessario."
+            f"sem distorcao, com texto distribuido pela propria geracao da imagem."
         )
         return file_name, ContentFile(raw_image), final_prompt, settings.OPENAI_IMAGE_MODEL, note
     except Exception as exc:

@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard | Storymaker{% endblock %}
-{% block heading %}Painel de Stories{% endblock %}
-{% block hero_text %}Crie um projeto, gere o conceito com a identidade editavel da BLAST e avance para a renderizacao da imagem com historico versionado.{% endblock %}
+{% block title %}Página Principal | Storymaker{% endblock %}
+{% block heading %}Ações do workflow{% endblock %}
+{% block hero_text %}Crie um projeto, gere o conceito e avance para a renderizacao da imagem com historico versionado.{% endblock %}
 
 {% block content %}
 <div class="grid two">
@@ -12,28 +12,55 @@
                 {% if openai_ready %}
                     <span class="pill ok">OpenAI pronta: {{ openai_image_model }}</span>
                 {% else %}
-                    <span class="pill warn">OpenAI indisponivel: usando arte local</span>
+                    <span class="pill warn">OpenAI indisponivel: geracao de imagem bloqueada</span>
                 {% endif %}
             </div>
             <div>
                 <h2>Novo projeto</h2>
-                <p class="meta">O tipo define o contexto editorial. Para `news`, selecione uma noticia curada ja salva no banco.</p>
+                <p class="meta">Notícia e Institucional usam artigo RSS ou texto personalizado. Promocional usa configuracao do equipamento.</p>
             </div>
 
             <form method="post" class="stack">
                 {% csrf_token %}
-                {% for field in form %}
-                    <div>
-                        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-                        {{ field }}
-                        {% if field.errors %}<div class="meta">{{ field.errors|join:", " }}</div>{% endif %}
-                    </div>
-                {% endfor %}
+                <div>
+                    <label for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>
+                    {{ form.title }}
+                    {% if form.title.errors %}<div class="meta">{{ form.title.errors|join:", " }}</div>{% endif %}
+                </div>
+
+                <div>
+                    <label for="{{ form.story_type.id_for_label }}">{{ form.story_type.label }}</label>
+                    {{ form.story_type }}
+                    {% if form.story_type.errors %}<div class="meta">{{ form.story_type.errors|join:", " }}</div>{% endif %}
+                </div>
+
+                <div data-field-group="editorial">
+                    <label for="{{ form.source_article.id_for_label }}">{{ form.source_article.label }}</label>
+                    {{ form.source_article }}
+                    {% if form.source_article.errors %}<div class="meta">{{ form.source_article.errors|join:", " }}</div>{% endif %}
+                </div>
+
+                <div data-field-group="editorial">
+                    <label for="{{ form.source_custom_text.id_for_label }}">{{ form.source_custom_text.label }}</label>
+                    {{ form.source_custom_text }}
+                    {% if form.source_custom_text.errors %}<div class="meta">{{ form.source_custom_text.errors|join:", " }}</div>{% endif %}
+                </div>
+
+                <div data-field-group="promotional">
+                    <label for="{{ form.equipment_configuration.id_for_label }}">{{ form.equipment_configuration.label }}</label>
+                    {{ form.equipment_configuration }}
+                    {% if form.equipment_configuration.errors %}<div class="meta">{{ form.equipment_configuration.errors|join:", " }}</div>{% endif %}
+                </div>
+
+                <div>
+                    <label for="{{ form.user_request.id_for_label }}">{{ form.user_request.label }}</label>
+                    {{ form.user_request }}
+                    {% if form.user_request.errors %}<div class="meta">{{ form.user_request.errors|join:", " }}</div>{% endif %}
+                </div>
+
                 <button type="submit">Criar projeto</button>
             </form>
         </div>
-
-        {% include "stories/_brand_guide_form.html" %}
     </section>
 
     <section class="stack">
@@ -53,10 +80,13 @@
                         <h3 style="margin-bottom: 8px;">{{ project.title }}</h3>
                         <p class="meta">Criado em {{ project.created_at|date:"d/m/Y H:i" }}</p>
                         {% if project.source_article %}
-                            <p class="meta">Noticia: {{ project.source_article.title }}</p>
+                            <p class="meta">Artigo: {{ project.source_article.title }}</p>
+                        {% endif %}
+                        {% if project.source_custom_text %}
+                            <p class="meta">Texto base personalizado informado.</p>
                         {% endif %}
                     </div>
-                    <p>{{ project.user_request|default:"Sem briefing adicional."|truncatechars:180 }}</p>
+                    <p>{{ project.user_request|default:"Sem direcionamento adicional."|truncatechars:180 }}</p>
                     <a class="button-link" href="{% url 'stories:project-detail' project.pk %}">Abrir workflow</a>
                 </article>
             {% empty %}
@@ -67,4 +97,27 @@
         </div>
     </section>
 </div>
+
+<script>
+    (function () {
+        const storyType = document.getElementById("id_story_type");
+        if (!storyType) return;
+
+        const editorialGroups = document.querySelectorAll('[data-field-group="editorial"]');
+        const promotionalGroups = document.querySelectorAll('[data-field-group="promotional"]');
+
+        function syncVisibility() {
+            const isPromotional = storyType.value === "promotional";
+            editorialGroups.forEach((node) => {
+                node.style.display = isPromotional ? "none" : "block";
+            });
+            promotionalGroups.forEach((node) => {
+                node.style.display = isPromotional ? "block" : "none";
+            });
+        }
+
+        storyType.addEventListener("change", syncVisibility);
+        syncVisibility();
+    })();
+</script>
 {% endblock %}

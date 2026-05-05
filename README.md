@@ -8,13 +8,13 @@ Internal Django app for generating Instagram stories for `BLAST INFO & TECH` usi
 - Environment-based settings are configured.
 - Internal panel available at `/` and admin at `/admin/`.
 - Main story workflow is implemented for project creation, concept generation, image generation, regeneration, approval, download, and version history.
-- Brand guidance is stored as editable database content through the `BrandGuide` model, with a single visual identity prompt for the BLAST direction.
-- When `OPENAI_API_KEY` is absent or the API fails, the app falls back to a local placeholder image preview so the workflow remains testable.
+- The visual direction is maintained via `BrandGuide` internally and applied to all image generations.
+- When `OPENAI_API_KEY` is absent or the API fails, image generation returns an explicit error (no placeholder fallback).
 
 ## MVP Goal
 Build a VPS-hosted internal panel where you can:
-- choose a story type: `news`, `generic`, or `promotional`
-- search curated tech news sources when the type is `news`
+- choose a post style: `news`, `institutional`, or `promotional`
+- use RSS articles or custom source text when the style is `news` or `institutional`
 - generate story copy and visual direction with AI
 - review and confirm the concept before image generation
 - regenerate the image
@@ -219,8 +219,8 @@ Main variables:
 - `OPENAI_TEXT_MODEL`: text model for copy generation
 - `OPENAI_IMAGE_MODEL`: image model for visual generation
 - `OPENAI_IMAGE_SIZE`: image size sent to OpenAI, default `1024x1792` for stories
-- `OPENAI_IMAGE_SIZE_STORY`: optional override for `generic` and `promotional`
-- `OPENAI_IMAGE_SIZE_NEWS`: optional override for `news`
+- `OPENAI_IMAGE_SIZE_STORY`: optional override for `promotional`
+- `OPENAI_IMAGE_SIZE_NEWS`: optional override for `news` and `institutional`
 - `OPENAI_REQUEST_TIMEOUT`: timeout in seconds for OpenAI requests
 - `GUNICORN_TIMEOUT`: worker timeout in seconds for web requests
 

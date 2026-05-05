@@ -3,17 +3,17 @@ from django.db import models
 
 class StoryProject(models.Model):
     class StoryType(models.TextChoices):
-        NEWS = "news", "News"
-        GENERIC = "generic", "Generic"
-        PROMOTIONAL = "promotional", "Promotional"
+        NEWS = "news", "Notícia"
+        PROMOTIONAL = "promotional", "Promocional"
+        INSTITUTIONAL = "institutional", "Institucional"
 
     class Status(models.TextChoices):
-        DRAFT = "draft", "Draft"
-        CONCEPT_READY = "concept_ready", "Concept ready"
-        IMAGE_READY = "image_ready", "Image ready"
-        APPROVED = "approved", "Approved"
+        DRAFT = "draft", "Rascunho"
+        CONCEPT_READY = "concept_ready", "Conceito pronto"
+        IMAGE_READY = "image_ready", "Imagem pronta"
+        APPROVED = "approved", "Aprovado"
 
-    title = models.CharField(max_length=180)
+    title = models.CharField(max_length=180, verbose_name="Titulo")
     story_type = models.CharField(max_length=20, choices=StoryType.choices)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
     source_article = models.ForeignKey(
@@ -24,6 +24,7 @@ class StoryProject(models.Model):
         related_name="story_projects",
     )
     equipment_configuration = models.TextField(blank=True)
+    source_custom_text = models.TextField(blank=True)
     user_request = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -43,14 +44,18 @@ class StoryProject(models.Model):
         return self.story_type == self.StoryType.NEWS
 
     @property
+    def is_editorial_post(self) -> bool:
+        return self.story_type in {self.StoryType.NEWS, self.StoryType.INSTITUTIONAL}
+
+    @property
     def target_dimensions(self) -> tuple[int, int]:
-        if self.is_news_post:
+        if self.is_editorial_post:
             return (1080, 1350)
         return (1080, 1920)
 
     @property
     def target_format_label(self) -> str:
-        if self.is_news_post:
+        if self.is_editorial_post:
             return "Feed 4:5"
         return "Story 9:16"
 

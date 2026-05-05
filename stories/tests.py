@@ -16,7 +16,8 @@ class StoryWorkflowTests(TestCase):
         BrandGuide.get_active()
         project = StoryProject.objects.create(
             title="Chip nacional de IA",
-            story_type=StoryProject.StoryType.GENERIC,
+            story_type=StoryProject.StoryType.INSTITUTIONAL,
+            source_custom_text="Panorama sobre impacto industrial de IA no Brasil.",
             user_request="Enfatizar impacto industrial.",
         )
 
@@ -44,24 +45,21 @@ class StoryWorkflowTests(TestCase):
         self.assertEqual(project.status, StoryProject.Status.CONCEPT_READY)
         self.assertEqual(project.versions.count(), 1)
 
-    def test_updates_active_guide_from_dashboard(self):
-        guide = BrandGuide.get_active()
-
+    def test_dashboard_creates_editorial_project_with_custom_text(self):
         response = self.client.post(
             reverse("stories:dashboard"),
             {
-                "action": "update_guide",
-                "guide-name": guide.name,
-                "guide-visual_identity_prompt": "Usar notebook em close, luz dramatica e fundo escuro.",
-                "guide-copy_prompt_template": guide.copy_prompt_template,
-                "guide-image_prompt_template": guide.image_prompt_template,
+                "title": "Post institucional",
+                "story_type": StoryProject.StoryType.INSTITUTIONAL,
+                "source_custom_text": "Texto base institucional sobre produtividade.",
+                "user_request": "Tom direto e confiavel.",
             },
             follow=True,
         )
 
         self.assertEqual(response.status_code, 200)
-        guide.refresh_from_db()
-        self.assertEqual(guide.visual_identity_prompt, "Usar notebook em close, luz dramatica e fundo escuro.")
+        project = StoryProject.objects.get(title="Post institucional")
+        self.assertEqual(project.story_type, StoryProject.StoryType.INSTITUTIONAL)
 
     def test_promotional_requires_equipment_configuration(self):
         response = self.client.post(
@@ -74,7 +72,20 @@ class StoryWorkflowTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Informe a configuracao do equipamento")
+        self.assertContains(response, "Informe a configuração do equipamento")
+
+    def test_editorial_requires_article_or_custom_text(self):
+        response = self.client.post(
+            reverse("stories:dashboard"),
+            {
+                "title": "Post de noticia",
+                "story_type": StoryProject.StoryType.NEWS,
+                "user_request": "Tom objetivo.",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Selecione um artigo de origem ou preencha um texto personalizado da base")
 
     def test_news_concept_generates_caption_in_fallback(self):
         guide = BrandGuide.get_active()
@@ -120,7 +131,7 @@ class StoryWorkflowTests(TestCase):
 
         self.assertEqual(final_image.size, (1080, 1920))
 
-    def test_generic_context_ignores_linked_news_article(self):
+    def test_institutional_context_uses_linked_article(self):
         source = NewsSource.objects.create(name="Tech", rss_url="https://example.com/rss")
         article = NewsArticle.objects.create(
             source=source,
@@ -130,17 +141,17 @@ class StoryWorkflowTests(TestCase):
         )
         project = StoryProject.objects.create(
             title="Tecnologia na saude",
-            story_type=StoryProject.StoryType.GENERIC,
+            story_type=StoryProject.StoryType.INSTITUTIONAL,
             source_article=article,
             user_request="Visual editorial clean.",
         )
 
         context = build_project_context(project)
 
-        self.assertNotIn("IA supera medicos", context)
-        self.assertNotIn("Resumo medico", context)
+        self.assertIn("IA supera medicos", context)
+        self.assertIn("Resumo medico", context)
 
-    def test_generic_fallback_concept_does_not_use_news_seed(self):
+    def test_promotional_fallback_concept_uses_equipment_seed(self):
         guide = BrandGuide.get_active()
         source = NewsSource.objects.create(name="Tech", rss_url="https://example.com/rss")
         article = NewsArticle.objects.create(
@@ -151,12 +162,13 @@ class StoryWorkflowTests(TestCase):
         )
         project = StoryProject.objects.create(
             title="Tecnologia na saude",
-            story_type=StoryProject.StoryType.GENERIC,
+            story_type=StoryProject.StoryType.PROMOTIONAL,
+            equipment_configuration="Ryzen 7, 16GB, SSD 1TB",
             source_article=article,
             user_request="Visual editorial clean.",
         )
 
         concept = generate_story_concept(project=project, guide=guide)
 
-        self.assertIn("Tecnologia na saude", concept["copy_text"])
+        self.assertIn("Ryzen 7", concept["copy_text"])
         self.assertNotIn("IA supera medicos", concept["copy_text"])

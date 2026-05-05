@@ -8,7 +8,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from branding.models import BrandGuide
 
-from .forms import ActiveBrandGuideForm, ChangeRequestForm, StoryProjectForm
+from .forms import ChangeRequestForm, StoryProjectForm
 from .models import StoryProject, StoryVersion
 from .services import ImageGenerationError, generate_image_asset, generate_story_concept, is_openai_configured, refine_image_direction
 
@@ -23,24 +23,13 @@ def _base_generation_context():
 def dashboard(request):
     guide = BrandGuide.get_active()
     if request.method == "POST":
-        action = request.POST.get("action")
-        if action == "update_guide":
-            guide_form = ActiveBrandGuideForm(request.POST, instance=guide, prefix="guide")
-            form = StoryProjectForm()
-            if guide_form.is_valid():
-                guide_form.save()
-                messages.success(request, "Guia ativo atualizado.")
-                return redirect("stories:dashboard")
-        else:
-            form = StoryProjectForm(request.POST)
-            guide_form = ActiveBrandGuideForm(instance=guide, prefix="guide")
-            if form.is_valid():
-                project = form.save()
-                messages.success(request, "Projeto criado. Gere o conceito para iniciar o workflow.")
-                return redirect("stories:project-detail", pk=project.pk)
+        form = StoryProjectForm(request.POST)
+        if form.is_valid():
+            project = form.save()
+            messages.success(request, "Projeto criado. Gere o conceito para iniciar o workflow.")
+            return redirect("stories:project-detail", pk=project.pk)
     else:
         form = StoryProjectForm()
-        guide_form = ActiveBrandGuideForm(instance=guide, prefix="guide")
 
     projects = StoryProject.objects.select_related("source_article").prefetch_related("versions")[:12]
     return render(
@@ -49,7 +38,6 @@ def dashboard(request):
         {
             "form": form,
             "guide": guide,
-            "guide_form": guide_form,
             "projects": projects,
             **_base_generation_context(),
         },
@@ -139,16 +127,9 @@ def project_detail(request, pk: int):
 
     concept_form = ChangeRequestForm(prefix="concept")
     image_form = ChangeRequestForm(prefix="image")
-    guide_form = ActiveBrandGuideForm(instance=guide, prefix="guide")
 
     if request.method == "POST":
         action = request.POST.get("action")
-        if action == "update_guide":
-            guide_form = ActiveBrandGuideForm(request.POST, instance=guide, prefix="guide")
-            if guide_form.is_valid():
-                guide_form.save()
-                messages.success(request, "Guia ativo atualizado para as proximas geracoes.")
-                return redirect("stories:project-detail", pk=project.pk)
 
         if action == "generate_concept":
             _create_concept_version(project=project, guide=guide)
@@ -204,7 +185,7 @@ def project_detail(request, pk: int):
             else:
                 project.status = StoryProject.Status.APPROVED
                 project.save(update_fields=["status", "updated_at"])
-                messages.success(request, "Story aprovado.")
+                messages.success(request, "Post aprovado.")
                 return redirect("stories:project-detail", pk=project.pk)
 
     versions = project.versions.all()
@@ -218,7 +199,6 @@ def project_detail(request, pk: int):
             "versions": versions,
             "concept_form": concept_form,
             "image_form": image_form,
-            "guide_form": guide_form,
             **_base_generation_context(),
         },
     )
