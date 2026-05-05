@@ -4,6 +4,7 @@ import json
 import logging
 from io import BytesIO
 from html import escape
+from pathlib import Path
 
 from django.conf import settings
 from django.core.files.base import ContentFile
@@ -34,11 +35,18 @@ class _SafeTemplateDict(dict):
 
 
 def _load_font(size: int, bold: bool = False):
-    font_name = "DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf"
-    try:
-        return ImageFont.truetype(font_name, size=size)
-    except OSError:
-        return ImageFont.load_default()
+    font_file = "DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf"
+    candidates = [
+        font_file,
+        f"/usr/share/fonts/truetype/dejavu/{font_file}",
+        str(Path(ImageFont.__file__).resolve().parent / "fonts" / font_file),
+    ]
+    for candidate in candidates:
+        try:
+            return ImageFont.truetype(candidate, size=size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
 
 
 def _wrap_draw_text(draw: ImageDraw.ImageDraw, text: str, font, max_width: int) -> list[str]:
@@ -148,8 +156,6 @@ def _resize_to_target(raw_image: bytes, target_size: tuple[int, int]) -> bytes:
 
 def _apply_exact_text_overlay(raw_image: bytes, version: StoryVersion) -> bytes:
     story_type = version.project.story_type
-    if story_type == StoryProject.StoryType.GENERIC:
-        return raw_image
 
     image = Image.open(BytesIO(raw_image)).convert("RGBA")
     canvas = image.copy()
@@ -351,7 +357,8 @@ def _image_prompt_suffix(version: StoryVersion) -> str:
         )
     return (
         "Formato obrigatorio: story 9:16 pensado para 1080x1920. "
-        "Como o tipo e promocional, a arte pode usar estrutura comercial clara, mas sem areas vazias ou caixas placeholder."
+        "Como o tipo e promocional, destaque o produto real como heroi visual com composicao clean. "
+        "Nao gerar wireframe, tabela, infografico, listas com linhas em branco, cards de interface ou caixas reservadas para texto."
     )
 
 
