@@ -69,6 +69,16 @@ def _wrap_draw_text(draw: ImageDraw.ImageDraw, text: str, font, max_width: int) 
     return lines
 
 
+def _clamp_text(text: str, max_chars: int) -> str:
+    cleaned = " ".join(text.split())
+    if len(cleaned) <= max_chars:
+        return cleaned
+    clipped = cleaned[: max_chars + 1]
+    if " " in clipped:
+        clipped = clipped.rsplit(" ", 1)[0]
+    return clipped.rstrip(" ,.;:-") + "..."
+
+
 def _resize_to_target(raw_image: bytes, target_size: tuple[int, int]) -> bytes:
     image = Image.open(BytesIO(raw_image)).convert("RGBA")
     resized = image.resize(target_size, Image.Resampling.LANCZOS)
@@ -85,37 +95,42 @@ def _apply_exact_text_overlay(raw_image: bytes, version: StoryVersion) -> bytes:
     width, height = canvas.size
     is_news = version.project.story_type == StoryProject.StoryType.NEWS
 
-    top_panel_height = int(height * (0.2 if is_news else 0.22))
-    bottom_panel_height = int(height * (0.24 if is_news else 0.28))
-
-    draw.rounded_rectangle((36, 36, width - 36, 36 + top_panel_height), radius=28, fill=(255, 255, 255, 232))
-    draw.rounded_rectangle(
-        (36, height - bottom_panel_height - 36, width - 36, height - 36),
-        radius=28,
-        fill=(255, 255, 255, 236),
-    )
-
     headline_font = _load_font(max(32, width // 11), bold=True)
     body_font = _load_font(max(22, width // 32), bold=False)
     price_font = _load_font(max(28, width // 24), bold=True)
 
-    headline_lines = _wrap_draw_text(draw, version.headline or version.project.title, headline_font, width - 120)
-    headline_y = 66
-    for line in headline_lines[:3]:
+    headline_lines = _wrap_draw_text(draw, version.headline or version.project.title, headline_font, width - 120)[: 2 if is_news else 3]
+    body_lines = _wrap_draw_text(draw, version.copy_text or "", body_font, width - 120)[: 3 if is_news else 5]
+
+    headline_sample = draw.textbbox((0, 0), "AG", font=headline_font)
+    body_sample = draw.textbbox((0, 0), "Ag", font=body_font)
+    headline_height = headline_sample[3] - headline_sample[1]
+    body_height = body_sample[3] - body_sample[1]
+
+    top_padding = 24
+    bottom_padding = 24
+    top_panel_height = top_padding * 2 + len(headline_lines) * headline_height + max(0, len(headline_lines) - 1) * 10
+    bottom_panel_height = bottom_padding * 2 + len(body_lines) * body_height + max(0, len(body_lines) - 1) * 10
+
+    draw.rounded_rectangle((36, 36, width - 36, 36 + top_panel_height), radius=28, fill=(255, 255, 255, 220))
+    draw.rounded_rectangle(
+        (36, height - bottom_panel_height - 36, width - 36, height - 36),
+        radius=28,
+        fill=(255, 255, 255, 228),
+    )
+
+    headline_y = 36 + top_padding
+    for line in headline_lines:
         draw.text((60, headline_y), line.upper(), font=headline_font, fill=(110, 43, 195, 255))
         bbox = draw.textbbox((60, headline_y), line.upper(), font=headline_font)
         headline_y = bbox[3] + 10
 
-    body_text = version.copy_text or ""
-    body_lines = _wrap_draw_text(draw, body_text, body_font, width - 120)
-    body_y = height - bottom_panel_height - 4
+    body_y = height - bottom_panel_height - 36 + bottom_padding
     for line in body_lines:
         font = price_font if "R$" in line or "%" in line else body_font
         draw.text((60, body_y), line, font=font, fill=(18, 0, 24, 255))
         bbox = draw.textbbox((60, body_y), line, font=font)
         body_y = bbox[3] + 10
-        if body_y > height - 90:
-            break
 
     output = BytesIO()
     canvas.convert("RGB").save(output, format="PNG", optimize=True)
@@ -233,7 +248,8 @@ def _image_prompt_suffix(version: StoryVersion) -> str:
         return (
             "Formato obrigatorio: post de noticia em feed 4:5 pensado para 1080x1350. "
             "A arte deve usar texto derivado da noticia e o briefing do usuario apenas como direcionamento extra. "
-            "Evite visual de template com caixas vazias."
+            "Nao criar placeholders, caixas vazias, cards de texto em branco, wireframes ou layouts com blocos reservados para texto. "
+            "Prefira uma unica imagem editorial forte, full-bleed, com area respirada natural para overlay de texto no topo e na base."
         )
     if version.project.story_type == StoryProject.StoryType.GENERIC:
         return (
@@ -451,12 +467,14 @@ def _fallback_concept(
     change_suffix = f" Ajuste solicitado: {change_request.strip()}" if change_request.strip() else ""
     return {
         "headline": project.title,
-        "copy_text": (
-            base_copy
-            or f"{seed}\nPanorama rapido para story da {settings.BLAST_BRAND_NAME}."
-        ) + change_suffix,
+        "copy_text": _clamp_text(
+            (project.source_article.title if project.story_type == StoryProject.StoryType.NEWS and project.source_article else (
+                (base_copy or f"{seed}\nPanorama rapido para story da {settings.BLAST_BRAND_NAME}.") + change_suffix
+            )),
+            110 if project.story_type == StoryProject.StoryType.NEWS else 240,
+        ),
         "caption_text": (
-            (project.source_article.summary if project.source_article and project.source_article.summary else seed)[:500]
+            _clamp_text(project.source_article.summary if project.source_article and project.source_article.summary else seed, 500)
             if project.story_type == StoryProject.StoryType.NEWS
             else ""
         ),
@@ -497,8 +515,8 @@ def generate_story_concept(
 
     return {
         "headline": data.get("headline", project.title),
-        "copy_text": data.get("copy_text", "").strip(),
-        "caption_text": (data.get("caption_text", "")[:500]).strip() if project.story_type == StoryProject.StoryType.NEWS else "",
+        "copy_text": _clamp_text(data.get("copy_text", "").strip(), 110 if project.story_type == StoryProject.StoryType.NEWS else 240),
+        "caption_text": _clamp_text(data.get("caption_text", "").strip(), 500) if project.story_type == StoryProject.StoryType.NEWS else "",
         "visual_direction": data.get("visual_direction", "").strip(),
         "image_prompt": data.get("image_prompt", "").strip(),
         "generation_notes": data.get("generation_notes", "Gerado pela API de texto.").strip(),
