@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from email.utils import parsedate_to_datetime
 import re
+import threading
 from urllib.request import Request, urlopen
 
 import feedparser
@@ -14,16 +15,18 @@ from .models import NewsArticle, NewsSource
 MIN_NEWS_CONTEXT_CHARS = 2000
 
 
-def _enqueue_article_enrichment(article: NewsArticle) -> None:
-    try:
-        from .tasks import enrich_article_context_task
+def _enqueue_source_enrichment(source: NewsSource) -> None:
+    def _dispatch() -> None:
+        try:
+            from .tasks import enrich_source_articles_task
 
-        enrich_article_context_task.apply_async(args=[article.pk], retry=False)
-    except Exception as exc:
-        article.context_status = NewsArticle.ContextStatus.FAILED
-        article.context_error = f"Fila de enriquecimento indisponivel: {exc}"
-        article.context_last_checked_at = timezone.now()
-        article.save(update_fields=["context_status", "context_error", "context_last_checked_at", "updated_at"])
+            enrich_source_articles_task.apply_async(args=[source.pk], retry=False)
+        except Exception as exc:
+            source.last_error = f"Fila de enriquecimento indisponivel: {exc}"
+            source.last_fetched_at = timezone.now()
+            source.save(update_fields=["last_error", "last_fetched_at", "updated_at"])
+
+    threading.Thread(target=_dispatch, daemon=True).start()
 
 
 @dataclass
@@ -165,8 +168,8 @@ def import_source_articles(source: NewsSource, limit: int | None = None) -> Impo
         article, created = NewsArticle.objects.update_or_create(url=url, defaults=defaults)
         article.context_status = NewsArticle.ContextStatus.PENDING
         article.context_error = ""
-        article.save(update_fields=["context_status", "context_error", "updated_at"])
-        _enqueue_article_enrichment(article)
+        article.context_last_checked_at = None
+        article.save(update_fields=["context_status", "context_error", "context_last_checked_at", "updated_at"])
         if created:
             result.created += 1
         else:
@@ -175,6 +178,7 @@ def import_source_articles(source: NewsSource, limit: int | None = None) -> Impo
     source.last_error = ""
     source.last_fetched_at = timezone.now()
     source.save(update_fields=["last_error", "last_fetched_at", "updated_at"])
+    _enqueue_source_enrichment(source)
     return result
 
 
