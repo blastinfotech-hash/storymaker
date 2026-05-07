@@ -262,14 +262,16 @@ SESSION_COOKIE_SECURE=True
 CSRF_COOKIE_SECURE=True
 DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DATABASE
 REDIS_URL=redis://redis:6379/0
-CELERY_BROKER_URL=redis://redis:6379/0
-CELERY_RESULT_BACKEND=redis://redis:6379/0
+CELERY_BROKER_URL=
+CELERY_RESULT_BACKEND=
 CELERY_TASK_ALWAYS_EAGER=False
 OPENAI_API_KEY=your-openai-key
 ```
 
 ### Atenção
 - Em app único no Easypanel, o `worker` agora sobe dentro do mesmo container por padrão.
+- Se você já tem um Redis interno no Easypanel, coloque a URL real em `REDIS_URL` e deixe `CELERY_BROKER_URL`/`CELERY_RESULT_BACKEND` vazios.
+- Se `CELERY_BROKER_URL` ou `CELERY_RESULT_BACKEND` ficarem como `redis://127.0.0.1:6379/0`, o app agora troca automaticamente para `REDIS_URL` quando `REDIS_URL` for um Redis interno diferente.
 - Se os projetos continuarem em `Queued`, faça um redeploy para garantir que a imagem nova foi aplicada.
 - Se o startup quebrar por schema legado, rode `python manage.py migrate` manualmente no console do app.
 

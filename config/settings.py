@@ -139,8 +139,19 @@ STORAGES = {
 
 APP_PORT = int(os.getenv('APP_PORT', '8015'))
 REDIS_URL = os.getenv('REDIS_URL', 'redis://127.0.0.1:6379/0')
-CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', REDIS_URL)
-CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', REDIS_URL)
+
+LOCAL_REDIS_URLS = {'redis://127.0.0.1:6379/0', 'redis://localhost:6379/0'}
+
+
+def resolve_redis_setting(name: str) -> str:
+    value = os.getenv(name)
+    if value in LOCAL_REDIS_URLS and REDIS_URL not in LOCAL_REDIS_URLS:
+        return REDIS_URL
+    return value or REDIS_URL
+
+
+CELERY_BROKER_URL = resolve_redis_setting('CELERY_BROKER_URL')
+CELERY_RESULT_BACKEND = resolve_redis_setting('CELERY_RESULT_BACKEND')
 CELERY_TASK_ALWAYS_EAGER = env_bool('CELERY_TASK_ALWAYS_EAGER', default=False)
 
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
