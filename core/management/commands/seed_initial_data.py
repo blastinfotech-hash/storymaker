@@ -52,9 +52,9 @@ class Command(BaseCommand):
 
         created_count = 0
         for source in DEFAULT_SOURCES:
-            _, created = NewsSource.objects.update_or_create(
-                slug=source["slug"],
-                defaults=source,
-            )
+            defaults = dict(source)
+            if "site_url" in existing_columns:
+                defaults["site_url"] = source["website_url"]
+            _, created = NewsSource.objects.update_or_create(slug=source["slug"], defaults=defaults)
             created_count += int(created)
         self.stdout.write(self.style.SUCCESS(f"Seeded RSS sources. New rows: {created_count}"))

@@ -69,7 +69,17 @@ class Command(BaseCommand):
         self._add_column(cursor, table, "priority", "smallint NOT NULL DEFAULT 10", repaired)
         self._add_column(cursor, table, "notes", "text NOT NULL DEFAULT ''", repaired)
         self._add_column(cursor, table, "last_ingested_at", "timestamp with time zone NULL", repaired)
+        repaired.extend(self._repair_legacy_source_columns(cursor, table))
         repaired.extend(self._backfill_source_slugs(cursor, table))
+        return repaired
+
+    def _repair_legacy_source_columns(self, cursor, table_name: str) -> list[str]:
+        repaired = []
+        columns = self._columns(cursor, table_name)
+        if "site_url" in columns:
+            cursor.execute(f'UPDATE "{table_name}" SET site_url = COALESCE(site_url, website_url, \'\')')
+            cursor.execute(f'ALTER TABLE "{table_name}" ALTER COLUMN site_url SET DEFAULT \'\'')
+            repaired.append(f"set default for legacy column {table_name}.site_url")
         return repaired
 
     def _repair_news_article(self, cursor) -> list[str]:
