@@ -197,6 +197,7 @@ CELERY_TASK_ALWAYS_EAGER=True
 Se voce esta rodando apenas **um app** no Easypanel, sem `docker compose`, este projeto agora suporta esse modo diretamente.
 
 O `CMD` padrao do container sobe junto:
+- `redis-server` local quando `REDIS_URL` estiver apontando para `127.0.0.1` ou `localhost`
 - `gunicorn`
 - `celery worker`
 
