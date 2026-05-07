@@ -13,6 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 RUN chmod +x /app/docker/entrypoint.sh
+RUN chmod +x /app/docker/run_single_app.sh
 
 ENTRYPOINT ["/app/docker/entrypoint.sh"]
-CMD ["sh", "-c", "gunicorn config.wsgi:application --bind 0.0.0.0:${APP_PORT:-8015}"]
+CMD ["/app/docker/run_single_app.sh"]

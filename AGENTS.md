@@ -13,6 +13,7 @@
 - Seed the default RSS sources with `./.venv/bin/python manage.py seed_initial_data`.
 - Run the async worker locally with `./.venv/bin/celery -A config worker --loglevel=info`.
 - Start the production-style stack with `docker compose up -d --build`.
+- In single-app Easypanel deploys, the default container command now starts both Gunicorn and Celery worker via `docker/run_single_app.sh`.
 
 ## Repo Constraints
 - This project is being built for a BLAST INFO & TECH story/image generator. Visual-direction work must preserve the BLAST identity rules provided in the session and keep that guidance editable in-app rather than hardcoding it irreversibly.

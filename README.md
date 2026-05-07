@@ -192,6 +192,31 @@ CELERY_TASK_ALWAYS_EAGER=True
 ./.venv/bin/celery -A config worker --loglevel=info
 ```
 
+## Easypanel com um único app
+
+Se voce esta rodando apenas **um app** no Easypanel, sem `docker compose`, este projeto agora suporta esse modo diretamente.
+
+O `CMD` padrao do container sobe junto:
+- `gunicorn`
+- `celery worker`
+
+Isso permite que a fila funcione mesmo com um unico app.
+
+### O que fazer agora no seu caso
+1. Faça redeploy do app no Easypanel com o código mais novo.
+2. O container vai rodar `migrate` automaticamente no startup.
+3. As novas migrations de reconciliação vão corrigir o schema legado do banco.
+4. O container também vai subir o worker no mesmo app.
+5. Abra `/` e teste um projeto novo.
+
+### Se ainda der erro de schema
+Entre no console do app e rode:
+
+```bash
+python manage.py migrate
+python manage.py seed_initial_data
+```
+
 ## VPS / Docker Compose
 
 ### 1. Subir o stack
@@ -243,7 +268,9 @@ OPENAI_API_KEY=your-openai-key
 ```
 
 ### Atenção
-Se a home abrir mas os projetos nunca saírem de `Queued`, o serviço `worker` não está processando a fila.
+- Em app único no Easypanel, o `worker` agora sobe dentro do mesmo container por padrão.
+- Se os projetos continuarem em `Queued`, faça um redeploy para garantir que a imagem nova foi aplicada.
+- Se o startup quebrar por schema legado, rode `python manage.py migrate` manualmente no console do app.
 
 ## Portas bloqueadas na VPS
 Não usar:
