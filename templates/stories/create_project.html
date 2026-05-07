@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Novo projeto{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <h1 style="margin-top:0;">Novo projeto</h1>
+  <p class="muted">Escolha o modo visual <strong>Blast</strong> ou <strong>Beta</strong>. Cada projeto gera 2 imagens por padrão.</p>
+  <form method="post" class="grid">
+    {% csrf_token %}
+    <div class="form-grid">
+      {% for field in form %}
+        <div class="{% if field.name == 'custom_brief' or field.name == 'adjustment_request' %}full{% endif %}">
+          <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% if field.help_text %}<div class="muted" style="margin-top:6px;">{{ field.help_text }}</div>{% endif %}
+          {% for error in field.errors %}<div style="color:#d93025; margin-top:6px;">{{ error }}</div>{% endfor %}
+        </div>
+      {% endfor %}
+    </div>
+    <div style="display:flex; gap:12px; flex-wrap:wrap;">
+      <button class="btn" type="submit">Criar projeto</button>
+      <a class="btn secondary" href="/">Voltar</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

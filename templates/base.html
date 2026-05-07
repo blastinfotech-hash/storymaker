@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Storymaker{% endblock %}</title>
+  <style>
+    :root {
+      --bg: #f3f4f7;
+      --panel: #ffffff;
+      --text: #141419;
+      --muted: #6d7280;
+      --blast: #6e2bc3;
+      --beta: #0077d9;
+      --border: #e5e7eb;
+      --success: #0f9d58;
+      --warn: #f5a623;
+      --danger: #d93025;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, sans-serif; background: var(--bg); color: var(--text); }
+    a { color: inherit; }
+    .shell { max-width: 1280px; margin: 0 auto; padding: 24px; }
+    .nav { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 24px; }
+    .nav a { text-decoration: none; }
+    .brand { font-size: 26px; font-weight: 700; }
+    .actions { display: flex; gap: 12px; flex-wrap: wrap; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 999px; padding: 12px 18px; background: #111827; color: #fff; text-decoration: none; font-weight: 700; cursor: pointer; }
+    .btn.secondary { background: #fff; color: #111827; border: 1px solid var(--border); }
+    .btn.blast { background: var(--blast); }
+    .btn.beta { background: var(--beta); }
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 24px; padding: 22px; }
+    .grid { display: grid; gap: 18px; }
+    .form-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    .form-grid .full { grid-column: 1 / -1; }
+    label { display: block; font-size: 14px; margin-bottom: 6px; color: var(--muted); }
+    input, textarea, select { width: 100%; border: 1px solid var(--border); border-radius: 16px; padding: 12px 14px; font: inherit; background: #fff; }
+    textarea { resize: vertical; }
+    .muted { color: var(--muted); }
+    .badge { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 6px 10px; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+    .badge.blast { background: rgba(110, 43, 195, 0.12); color: var(--blast); }
+    .badge.beta { background: rgba(0, 119, 217, 0.12); color: var(--beta); }
+    .badge.status { background: #f3f4f6; color: #111827; }
+    .messages { display: grid; gap: 10px; margin-bottom: 18px; }
+    .message { padding: 12px 14px; border-radius: 14px; background: #eef6ff; border: 1px solid #cfe5ff; }
+    code, pre { background: #111827; color: #f9fafb; border-radius: 14px; }
+    pre { padding: 16px; overflow: auto; white-space: pre-wrap; }
+    img.preview { width: 100%; display: block; border-radius: 18px; background: #e5e7eb; aspect-ratio: 4 / 5; object-fit: cover; }
+    @media (max-width: 900px) { .shell { padding: 16px; } .nav { align-items: flex-start; flex-direction: column; } }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <div class="shell">
+    <div class="nav">
+      <a href="/" class="brand">Storymaker</a>
+      <div class="actions">
+        <a class="btn secondary" href="/admin/">Admin</a>
+        <a class="btn" href="{% url 'create_project' %}">Novo projeto</a>
+      </div>
+    </div>
+    {% if messages %}
+      <div class="messages">
+        {% for message in messages %}
+          <div class="message">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </div>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

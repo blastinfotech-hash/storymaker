@@ -1,102 +1,234 @@
 # Storymaker
 
-Internal Django app for generating Instagram stories for `BLAST INFO & TECH` using AI text + image generation.
+Painel interno em Django para gerar campanhas visuais de informática com dois modos de marca:
+- `Blast`
+- `Beta`
 
-## Current Status
-- Project bootstrap is ready.
-- Django apps created: `core`, `branding`, `news`, `stories`.
-- Environment-based settings are configured.
-- Current URL available by default: `/admin/`.
-- The story generation flow itself is still to be implemented.
+O sistema foi estruturado para:
+- criar projetos individuais
+- criar projetos em massa a partir de promoções coladas em texto
+- gerar conceito de campanha
+- gerar `2` imagens por padrão para cada projeto
+- salvar os prompts reais enviados
+- rodar tudo de forma assíncrona com `Celery + Redis`
 
-## MVP Goal
-Build a VPS-hosted internal panel where you can:
-- choose a story type: `news`, `generic`, or `promotional`
-- search curated tech news sources when the type is `news`
-- generate story copy and visual direction with AI
-- review and confirm the concept before image generation
-- regenerate the image
-- request punctual edits to text or image direction
-- download the generated asset
-- keep all versions and history saved in the database
-- later connect the approved asset to the Instagram Graph API
-
-## Brand Constraint
-This project must follow the BLAST INFO & TECH visual identity manual shared in the project session.
-
-Important rule for implementation:
-- the BLAST visual manual should be stored as editable app data, not hardcoded forever into prompts
+## Estado atual
+- Home operacional fora do admin em `/`
+- Login aproveita o usuário do Django admin
+- Projetos com modo visual `Blast/Beta`
+- Cada geração cria `2` variantes de imagem por padrão
+- Fluxo assíncrono com status na tela
+- Criação em massa promocional com recorte automático de promoções
+- Fontes RSS iniciais semeadas automaticamente no deploy
 
 ## Stack
 - Python `3.12`
 - Django `5.2`
 - Postgres via `DATABASE_URL`
-- Celery + Redis for async jobs
-- OpenAI for text/image generation
-- RSS ingestion for curated technology news
+- Celery + Redis para filas
+- OpenAI para texto/imagem quando houver chave
+- Fallback local com placeholder SVG quando não houver geração real de imagem
 
-## Local Setup
-1. Create or reuse the virtualenv:
+## URLs principais
+- `/` painel principal
+- `/projects/new/` novo projeto
+- `/projects/<slug>/` detalhe do projeto
+- `/admin/` backoffice técnico
+
+## Conceitos principais
+
+### 1. Projeto
+Cada projeto tem:
+- tipo: `news`, `generic`, `promotional`
+- modo visual: `Blast` ou `Beta`
+- brief / tema / preço
+- um único campo de ajuste: `adjustment request`
+
+### 2. Conceito
+O conceito é o texto e a direção visual da campanha:
+- headline
+- subheadline
+- body
+- preço
+- CTA
+- direção visual
+- prompt real enviado para gerar esse conceito
+
+### 3. Variantes
+Cada conceito gera `2` variantes de imagem por padrão.
+
+Cada variante salva:
+- prompt real enviado para imagem
+- arquivo gerado
+- status
+- resposta do provider
+
+### 4. Lote em massa
+O lote em massa sempre cria projetos `promotional`.
+
+Você cola texto com promoções e o sistema:
+1. recorta as promoções
+2. cria um projeto por promoção
+3. gera conceito automaticamente
+4. gera 2 imagens por projeto
+
+## Fluxo do usuário
+
+### Projeto individual
+1. Acesse `/projects/new/`
+2. Escolha `Blast` ou `Beta`
+3. Escolha o tipo de projeto
+4. Preencha o tema, brief e preço se necessário
+5. Salve
+6. Entre no projeto
+7. Clique em `Gerar ou regerar conceito + 2 imagens`
+8. Aguarde a tela atualizar sozinha
+9. Compare as 2 variantes
+10. Marque a melhor como selecionada
+
+### Criação em massa
+1. Acesse `/`
+2. Vá em `Criação em massa`
+3. Escolha `Blast` ou `Beta`
+4. Cole as promoções
+5. Clique em `Gerar lote assíncrono`
+6. O lote vai aparecer com status
+7. Os projetos criados também aparecerão na galeria principal
+
+## Formato esperado para promoções em massa
+Pode ser irregular. O parser tenta separar blocos por linhas em branco ou por linhas com preço.
+
+Exemplo:
+
+```text
+NOTEBOOK LENOVO IDEAPAD
+Ryzen 7 16GB SSD 512GB Tela Full HD
+R$ 3.999
+
+PC GAMER RTX 4060
+Ryzen 5 5600 16GB SSD 1TB
+R$ 5.499
+```
+
+## Modo visual
+
+### Blast
+- roxo dominante
+- estética premium de tecnologia
+- layout clean com produto hero e conversão forte
+
+### Beta
+- azul corporativo dominante
+- varejo promocional direto
+- preço extremamente dominante
+- fundo clean desfocado
+
+## Importante sobre o processamento assíncrono
+As requisições não geram conceito e imagem dentro da request HTTP.
+
+Elas apenas entram na fila.
+
+Para isso funcionar, o `worker` precisa estar rodando.
+
+Se o projeto ficar parado em:
+- `Queued`
+- `Generating concept`
+- `Generating images`
+
+verifique se o serviço `worker` está ativo.
+
+## Local setup
+1. Criar venv:
+
 ```bash
 python3 -m venv .venv
 ```
 
-2. Install dependencies:
+2. Instalar dependências:
+
 ```bash
 ./.venv/bin/pip install -r requirements.txt
 ```
 
-3. Create your environment file:
+3. Criar `.env`:
+
 ```bash
 cp .env.example .env
 ```
 
-4. Update `.env` with your real values.
+4. Migrar banco:
 
-5. Run migrations:
 ```bash
 ./.venv/bin/python manage.py migrate
 ```
 
-6. Create an admin user:
+5. Semear fontes RSS:
+
+```bash
+./.venv/bin/python manage.py seed_initial_data
+```
+
+6. Criar admin:
+
 ```bash
 ./.venv/bin/python manage.py createsuperuser
 ```
 
-7. Start the development server:
+7. Em desenvolvimento, se quiser rodar tudo localmente sem worker separado, você pode usar:
+
+```env
+CELERY_TASK_ALWAYS_EAGER=True
+```
+
+8. Rodar servidor:
+
 ```bash
 ./.venv/bin/python manage.py runserver 0.0.0.0:8015
 ```
 
-8. Open:
-```text
-http://127.0.0.1:8015/admin/
-```
+9. Rodar worker em outro terminal quando estiver testando async real:
 
-## VPS Setup
-This project now includes a production starter with `Dockerfile` and `docker-compose.yml`.
-
-Use this flow on your VPS.
-
-### 1. Clone the project on the VPS
 ```bash
-git clone <your-repo-url> storymaker
-cd storymaker
+./.venv/bin/celery -A config worker --loglevel=info
 ```
 
-### 2. Create the environment file
+## VPS / Docker Compose
+
+### 1. Subir o stack
 ```bash
-cp .env.example .env
+docker compose up -d --build
 ```
 
-### 3. Edit `.env` for production
-Minimum recommended values:
+O compose sobe:
+- `web`
+- `worker`
+- `redis`
 
+### 2. Criar o superusuário
+
+Se estiver no host da VPS:
+
+```bash
+docker compose exec web python manage.py createsuperuser
+```
+
+Se estiver no console do container no Easypanel:
+
+```bash
+python manage.py createsuperuser
+```
+
+### 3. Abrir o painel
+- `/` para o painel principal
+- `/admin/` para o admin técnico
+
+## Easypanel
+
+### Configuração mínima do `.env`
 ```env
-SECRET_KEY=put-a-long-random-secret-here
 DEBUG=False
-ALLOWED_HOSTS=your-domain.com,www.your-domain.com
-CSRF_TRUSTED_ORIGINS=https://your-domain.com,https://www.your-domain.com
+ALLOWED_HOSTS=blast-storymaker.0ksds9.easypanel.host
+CSRF_TRUSTED_ORIGINS=https://blast-storymaker.0ksds9.easypanel.host
 APP_PORT=8015
 USE_X_FORWARDED_HOST=True
 USE_X_FORWARDED_PORT=True
@@ -106,124 +238,15 @@ DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DATABASE
 REDIS_URL=redis://redis:6379/0
 CELERY_BROKER_URL=redis://redis:6379/0
 CELERY_RESULT_BACKEND=redis://redis:6379/0
+CELERY_TASK_ALWAYS_EAGER=False
 OPENAI_API_KEY=your-openai-key
 ```
 
-If your Postgres already exists on the VPS or another server, keep `DATABASE_URL` pointing to that external database.
+### Atenção
+Se a home abrir mas os projetos nunca saírem de `Queued`, o serviço `worker` não está processando a fila.
 
-### 4. Start the containers
-```bash
-docker compose up -d --build
-```
-
-This will start:
-- `web`: Django + Gunicorn on host port `8015`
-- `worker`: Celery worker
-- `redis`: local Redis for async jobs
-
-### 5. Create the Django admin user
-```bash
-docker compose exec web python manage.py createsuperuser
-```
-
-### 6. Open the app directly by port
-If you want to test before attaching a domain:
-
-```text
-http://YOUR_VPS_IP:8015/admin/
-```
-
-### 7. Attach the domain in your VPS panel / reverse proxy
-Point your domain to:
-
-```text
-http://YOUR_SERVER:8015
-```
-
-If you are using Easypanel or another reverse proxy manager, create a domain entry that forwards traffic to host port `8015`.
-
-### 8. Update after changes
-```bash
-git pull
-docker compose up -d --build
-```
-
-## Easypanel Fix For `DisallowedHost`
-If you see this error:
-
-```text
-Invalid HTTP_HOST header
-```
-
-your environment is missing the public host used by Easypanel.
-
-Use values like these in the app environment:
-
-```env
-DEBUG=False
-ALLOWED_HOSTS=blast-storymaker.0ksds9.easypanel.host
-CSRF_TRUSTED_ORIGINS=https://blast-storymaker.0ksds9.easypanel.host
-USE_X_FORWARDED_HOST=True
-USE_X_FORWARDED_PORT=True
-SESSION_COOKIE_SECURE=True
-CSRF_COOKIE_SECURE=True
-```
-
-If you also attach a custom domain, include both hosts:
-
-```env
-ALLOWED_HOSTS=blast-storymaker.0ksds9.easypanel.host,seu-dominio.com,www.seu-dominio.com
-CSRF_TRUSTED_ORIGINS=https://blast-storymaker.0ksds9.easypanel.host,https://seu-dominio.com,https://www.seu-dominio.com
-```
-
-Then restart the app:
-
-```bash
-docker compose up -d --build
-```
-
-## VPS Quick Command List
-```bash
-cp .env.example .env
-nano .env
-docker compose up -d --build
-docker compose exec web python manage.py createsuperuser
-docker compose logs -f web
-```
-
-## VPS Notes
-- `docker/entrypoint.sh` runs `migrate` and `collectstatic` automatically on web container start.
-- The app listens on host port `8015` because your other ports are already occupied.
-- `DATABASE_URL` should use your real Postgres connection string.
-- If your reverse proxy serves HTTPS, `CSRF_TRUSTED_ORIGINS` must use `https://...`.
-- `REDIS_URL=redis://redis:6379/0` is correct when using the included compose setup.
-
-## Environment Variables
-Use `.env.example` as the source of truth.
-
-Main variables:
-- `SECRET_KEY`: Django secret key
-- `DEBUG`: `True` or `False`
-- `ALLOWED_HOSTS`: comma-separated hosts
-- `CSRF_TRUSTED_ORIGINS`: comma-separated origins with protocol
-- `APP_PORT`: safe default is `8015`
-- `USE_X_FORWARDED_HOST`: keep `True` behind Easypanel or another reverse proxy
-- `USE_X_FORWARDED_PORT`: keep `True` behind Easypanel or another reverse proxy
-- `SESSION_COOKIE_SECURE`: use `True` in production with HTTPS
-- `CSRF_COOKIE_SECURE`: use `True` in production with HTTPS
-- `DATABASE_URL`: use your VPS Postgres URL here
-- `REDIS_URL`: Redis connection string for Celery
-- `OPENAI_API_KEY`: OpenAI API key
-- `OPENAI_TEXT_MODEL`: text model for copy generation
-- `OPENAI_IMAGE_MODEL`: image model for visual generation
-
-## Postgres Example
-```env
-DATABASE_URL=postgresql://postgres:your-password@your-host:5432/storymaker
-```
-
-## VPS Port Constraint
-Do not use these host ports because they are already occupied by sibling apps:
+## Portas bloqueadas na VPS
+Não usar:
 - `80`
 - `8000`
 - `8011`
@@ -232,34 +255,22 @@ Do not use these host ports because they are already occupied by sibling apps:
 - `8091`
 - `8501`
 
-Safe default for this app:
+Porta segura atual:
 - `8015`
 
-## Suggested App Boundaries
-- `core`: shared utilities, base models, common helpers
-- `branding`: editable BLAST visual identity, prompt templates, brand rules
-- `news`: RSS sources, ingested articles, ranking/filtering
-- `stories`: story projects, versions, prompts, images, approvals, publishing state
-
-## Suggested First Implementation Order
-1. Create the core models for projects, versions, news sources, news articles, image assets, and brand guides.
-2. Register everything in Django admin.
-3. Add RSS ingestion from curated hardware/tech sources.
-4. Add the text generation service.
-5. Add visual-direction generation using the editable BLAST identity guide.
-6. Add image generation and regeneration.
-7. Add download/export support.
-8. Add Instagram publishing later as a separate integration step.
-
-## Verified Commands
+## Comandos úteis
 ```bash
 ./.venv/bin/python manage.py check
 ./.venv/bin/python manage.py migrate
+./.venv/bin/python manage.py seed_initial_data
 ./.venv/bin/python manage.py createsuperuser
-./.venv/bin/python manage.py runserver 0.0.0.0:8015
+./.venv/bin/celery -A config worker --loglevel=info
+docker compose up -d --build
+docker compose exec web python manage.py createsuperuser
 ```
 
-## Notes
-- The project currently falls back to SQLite if `DATABASE_URL` is not set.
-- For production, point `DATABASE_URL` to Postgres and set `DEBUG=False`.
-- The `.env` file is ignored by git.
+## Observações
+- O admin continua existindo como backoffice, mas o fluxo principal agora fica na home `/`.
+- O único campo de ajuste do projeto é `adjustment request`.
+- O conceito e cada variante mostram o prompt real salvo.
+- Sem `OPENAI_API_KEY`, o sistema continua funcional usando conceitos fallback + SVG placeholder.
