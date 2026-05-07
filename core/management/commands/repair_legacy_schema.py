@@ -131,10 +131,10 @@ class Command(BaseCommand):
 
     def _temporary_field(self, field):
         temp_field = field.clone()
+        temp_field.set_attributes_from_name(field.name)
         temp_field.null = True
         temp_field.blank = True
-        if hasattr(temp_field, "_unique"):
-            temp_field._unique = False
+        temp_field.unique = False
         return temp_field
 
     def _backfill_source_slugs(self, table_name: str):
