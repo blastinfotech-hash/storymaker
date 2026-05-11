@@ -370,6 +370,25 @@ python manage.py seed_initial_data
 
 Depois deste ajuste, `repair_legacy_schema` também corrige defaults das colunas antigas `description`, `last_error` e `site_url` para o seed não quebrar.
 
+### Erro 500 depois do startup saudável
+
+Se os logs mostram `celery ready`, Redis conectado e mesmo assim a página abre com 500, o problema mais provável é schema legado na tabela `stories_storyproject`.
+
+Isso acontece quando o banco foi criado por uma versão anterior do app e as migrations antigas já ficaram registradas como aplicadas. Nesse caso, o Django tenta ler o modelo novo, mas o Postgres ainda pode estar sem colunas como `slug`, `content_type`, `target_format`, `custom_brief` e `article_id`, ou com colunas antigas `NOT NULL` como `story_type` sem default.
+
+O comando de startup agora corrige isso automaticamente:
+
+```bash
+python manage.py repair_legacy_schema
+```
+
+Ele também preserva dados antigos quando possível:
+- `story_type` vira `content_type`
+- `equipment_configuration` e `source_custom_text` viram `custom_brief`
+- `user_request` vira `adjustment_request`
+- `source_article_id` vira `article_id`
+- `title` gera `slug` e `topic`
+
 ## Portas bloqueadas na VPS
 Não usar:
 - `80`
