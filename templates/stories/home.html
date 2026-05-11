@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Storymaker | Painel{% endblock %}
+
+{% block content %}
+<div class="grid" style="grid-template-columns: 1.5fr 1fr; align-items: start;">
+  <section class="panel" style="background: linear-gradient(135deg, #111827, #1f2937); color: white; border: 0;">
+    <div style="display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+      <div>
+        <div class="muted" style="color:#d1d5db;">Painel operacional</div>
+        <h1 style="margin:8px 0 12px; font-size:40px;">Projetos, conceitos e 2 variantes por padrão</h1>
+        <p style="margin:0; max-width:780px; line-height:1.6; color:#e5e7eb;">Cada projeto agora segue o modo visual <strong>Blast</strong> ou <strong>Beta</strong>, roda assíncrono e aparece na home com suas imagens para facilitar a busca visual.</p>
+      </div>
+      <div class="panel" style="min-width:220px; background:rgba(255,255,255,0.08); border-color:rgba(255,255,255,0.15); color:white;">
+        <div class="muted" style="color:#d1d5db;">Projetos cadastrados</div>
+        <div style="font-size:46px; font-weight:700; margin-top:8px;">{{ project_count }}</div>
+      </div>
+    </div>
+  </section>
+  <section class="panel">
+    <h2 style="margin-top:0;">Criação em massa</h2>
+    <p class="muted">Cole várias promoções. O sistema recorta, cria projetos promocionais e dispara conceito + 2 imagens sem confirmação manual.</p>
+    <form method="post" class="grid">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="bulk_create">
+      <div>
+        <label for="id_brand_mode">Marca visual</label>
+        {{ batch_form.brand_mode }}
+      </div>
+      <div>
+        <label for="id_raw_input">Promoções</label>
+        {{ batch_form.raw_input }}
+      </div>
+      <button class="btn" type="submit">Gerar lote assíncrono</button>
+    </form>
+  </section>
+</div>
+
+<section class="panel" style="margin-top:20px;">
+  <div style="display:flex; justify-content:space-between; gap:12px; align-items:center; flex-wrap:wrap;">
+    <div>
+      <h2 style="margin:0 0 8px;">Buscar projetos</h2>
+      <div class="muted">Encontre pelo nome, tema ou texto do briefing.</div>
+    </div>
+    <form method="get" style="display:flex; gap:12px; flex-wrap:wrap; min-width:min(100%, 460px);">
+      <input type="text" name="q" value="{{ search_query }}" placeholder="Buscar projeto">
+      <button class="btn secondary" type="submit">Buscar</button>
+    </form>
+  </div>
+</section>
+
+{% if batches %}
+<section class="panel" style="margin-top:20px;">
+  <h2 style="margin-top:0;">Lotes recentes</h2>
+  <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
+    {% for batch in batches %}
+      <div class="panel" style="padding:18px;">
+        <div style="display:flex; justify-content:space-between; gap:8px; align-items:center;">
+          <strong>{{ batch.name }}</strong>
+          <span class="badge {% if batch.brand_mode == 'blast' %}blast{% else %}beta{% endif %}">{{ batch.get_brand_mode_display }}</span>
+        </div>
+        <div class="muted" style="margin-top:8px;">{{ batch.get_status_display }}</div>
+        <div class="muted" style="margin-top:8px;">{{ batch.completed_projects }}/{{ batch.total_projects }} concluidos</div>
+        {% if batch.error_message %}<div style="margin-top:10px; color:#d93025;">{{ batch.error_message }}</div>{% endif %}
+      </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<section style="margin-top:20px;">
+  <div style="display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:14px; flex-wrap:wrap;">
+    <div>
+      <h2 style="margin:0 0 6px;">Galeria de projetos</h2>
+      <div class="muted">Cada card mostra o status atual e as variantes mais recentes.</div>
+    </div>
+  </div>
+  <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
+    {% for project in projects %}
+      <article class="panel" style="padding:18px;">
+        <div style="display:flex; justify-content:space-between; gap:8px; align-items:flex-start;">
+          <div>
+            <strong>{{ project.title }}</strong><br>
+            <span class="muted">{{ project.get_content_type_display }} · {{ project.get_target_format_display }}</span>
+          </div>
+          <span class="badge {% if project.brand_mode == 'blast' %}blast{% else %}beta{% endif %}">{{ project.get_brand_mode_display }}</span>
+        </div>
+        <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+          <span class="badge status">{{ project.get_status_display }}</span>
+          {% if project.article %}<span class="badge status">Noticia vinculada</span>{% endif %}
+        </div>
+        <div class="grid" style="grid-template-columns: 1fr 1fr; margin-top:14px;">
+          {% for variant in project.latest_ready_variants %}
+            <a href="{% url 'project_detail' slug=project.slug %}">
+              <img class="preview" src="{{ variant.asset.url }}" alt="Variante {{ variant.variant_number }}">
+            </a>
+          {% empty %}
+            <div class="panel" style="min-height:180px; display:flex; align-items:center; justify-content:center; text-align:center;">Aguardando imagens</div>
+          {% endfor %}
+          {% if project.latest_ready_variants|length == 1 %}
+            <div class="panel" style="min-height:180px; display:flex; align-items:center; justify-content:center; text-align:center;">Variante 2 em fila</div>
+          {% endif %}
+          {% if not project.latest_ready_variants %}
+            <div class="panel" style="min-height:180px; display:flex; align-items:center; justify-content:center; text-align:center;">Conceito / imagens em processamento</div>
+          {% endif %}
+        </div>
+        <div class="muted" style="margin-top:12px; min-height:42px;">{{ project.topic|default:project.custom_brief|truncatechars:110 }}</div>
+        <div style="margin-top:14px;"><a class="btn secondary" href="{% url 'project_detail' slug=project.slug %}">Abrir projeto</a></div>
+      </article>
+    {% empty %}
+      <div class="panel">Nenhum projeto encontrado.</div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+{% if has_processing %}
+<script>
+  setTimeout(function () { window.location.reload(); }, 5000);
+</script>
+{% endif %}
+{% endblock %}

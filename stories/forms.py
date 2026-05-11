@@ -1,8 +1,6 @@
 from django import forms
 
-from news.models import NewsArticle
-
-from .models import StoryProject
+from stories.models import BulkProjectBatch, StoryProject
 
 
 class StoryProjectForm(forms.ModelForm):
@@ -10,67 +8,53 @@ class StoryProjectForm(forms.ModelForm):
         model = StoryProject
         fields = [
             "title",
-            "story_type",
-            "source_article",
-            "source_custom_text",
-            "equipment_configuration",
-            "user_request",
+            "brand_mode",
+            "content_type",
+            "target_format",
+            "article",
+            "topic",
+            "custom_brief",
+            "promotional_price",
+            "call_to_action",
+            "adjustment_request",
         ]
-        labels = {
-            "story_type": "Estilo de Postagem",
-            "source_article": "Artigo de origem",
-            "source_custom_text": "Texto personalizado da base",
-            "equipment_configuration": "Configuracao do equipamento",
-            "user_request": "Direcionamento adicional",
-        }
         widgets = {
-            "source_custom_text": forms.Textarea(attrs={"rows": 5}),
-            "equipment_configuration": forms.Textarea(attrs={"rows": 5}),
-            "user_request": forms.Textarea(attrs={"rows": 4}),
+            "brand_mode": forms.RadioSelect,
+            "content_type": forms.RadioSelect,
+            "custom_brief": forms.Textarea(attrs={"rows": 4}),
+            "adjustment_request": forms.Textarea(attrs={"rows": 3}),
+        }
+        labels = {
+            "title": "Título do projeto",
+            "brand_mode": "Marca visual",
+            "content_type": "Tipo de projeto",
+            "target_format": "Formato",
+            "article": "Artigo de origem",
+            "topic": "Tema / produto",
+            "custom_brief": "Descrição da arte",
+            "promotional_price": "Preço promocional",
+            "call_to_action": "Chamada / CTA",
+            "adjustment_request": "Pedido de ajuste",
+        }
+        help_texts = {
+            "custom_brief": "Para promocionais, informe aqui o descritivo da arte: produto, benefícios, specs e oferta.",
+            "adjustment_request": "Campo único usado para orientar a próxima geração de conceito e imagens.",
         }
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["source_article"].queryset = NewsArticle.objects.select_related("source").order_by("-published_at", "-created_at")
-        self.fields["source_article"].required = False
-        self.fields["source_custom_text"].required = False
-        self.fields["equipment_configuration"].required = False
-        self.fields["user_request"].required = False
 
-    def clean(self):
-        cleaned_data = super().clean()
-        story_type = cleaned_data.get("story_type")
-        source_article = cleaned_data.get("source_article")
-        source_custom_text = (cleaned_data.get("source_custom_text") or "").strip()
-        equipment_configuration = cleaned_data.get("equipment_configuration")
-        if story_type == StoryProject.StoryType.NEWS and not source_article:
-            self.add_error("source_article", "Selecione um artigo de origem para posts de notícia.")
-
-        if story_type == StoryProject.StoryType.INSTITUTIONAL and not source_article and not source_custom_text:
-            self.add_error(
-                "source_article",
-                "Selecione um artigo de origem ou preencha um texto personalizado da base.",
+class BulkProjectBatchForm(forms.ModelForm):
+    class Meta:
+        model = BulkProjectBatch
+        fields = ["brand_mode", "raw_input"]
+        widgets = {
+            "raw_input": forms.Textarea(
+                attrs={
+                    "rows": 10,
+                    "placeholder": "NOTEBOOK LENOVO IDEAPAD\nRyzen 7 16GB SSD 512GB\nR$ 3.999\n\nPC GAMER RTX 4060\nRyzen 5 5600 16GB SSD 1TB\nR$ 5.499",
+                }
             )
-        if story_type == StoryProject.StoryType.PROMOTIONAL and not equipment_configuration:
-            self.add_error("equipment_configuration", "Informe a configuração do equipamento para projetos promocionais.")
-
-        if story_type == StoryProject.StoryType.PROMOTIONAL:
-            cleaned_data["source_article"] = None
-            cleaned_data["source_custom_text"] = ""
-
-        if story_type == StoryProject.StoryType.NEWS:
-            cleaned_data["source_custom_text"] = ""
-
-        if story_type in {StoryProject.StoryType.NEWS, StoryProject.StoryType.INSTITUTIONAL}:
-            cleaned_data["equipment_configuration"] = ""
-
-        cleaned_data["source_custom_text"] = source_custom_text
-        return cleaned_data
-
-
-class ChangeRequestForm(forms.Form):
-    change_request = forms.CharField(
-        label="Pedido de ajuste",
-        required=False,
-        widget=forms.Textarea(attrs={"rows": 3, "placeholder": "Ex.: deixar a imagem mais dramatica e reduzir o texto."}),
-    )
+        }
+        labels = {
+            "brand_mode": "Marca visual",
+            "raw_input": "Artes promocionais em massa",
+        }

@@ -1,33 +1,84 @@
 from django.db import models
+from django.utils.text import slugify
+
+from core.models import TimeStampedModel
+from news.models import NewsArticle
 
 
-class StoryProject(models.Model):
-    class StoryType(models.TextChoices):
+def story_asset_upload_to(instance: "StoryImageVariant", filename: str) -> str:
+    slug = instance.concept.project.slug or slugify(instance.concept.project.title) or f"project-{instance.concept.project_id}"
+    return f"stories/{slug}/concept-{instance.concept.version_number}/variant-{instance.variant_number}-{filename}"
+
+
+class BulkProjectBatch(TimeStampedModel):
+    class Status(models.TextChoices):
+        QUEUED = "queued", "Na fila"
+        PARSING = "parsing", "Recortando promoções"
+        CREATING = "creating", "Criando projetos"
+        GENERATING = "generating", "Gerando artes"
+        COMPLETED = "completed", "Concluído"
+        FAILED = "failed", "Falhou"
+
+    class BrandMode(models.TextChoices):
+        BLAST = "blast", "Blast"
+        BETA = "beta", "Beta"
+
+    name = models.CharField(max_length=180)
+    brand_mode = models.CharField(max_length=10, choices=BrandMode.choices, default=BrandMode.BLAST)
+    raw_input = models.TextField(help_text="Cole as promoções com título, descrição e preço, mesmo com espaços irregulares.")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.QUEUED)
+    total_projects = models.PositiveIntegerField(default=0)
+    completed_projects = models.PositiveIntegerField(default=0)
+    error_message = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class StoryProject(TimeStampedModel):
+    class ContentType(models.TextChoices):
         NEWS = "news", "Notícia"
+        GENERIC = "generic", "Institucional"
         PROMOTIONAL = "promotional", "Promocional"
-        INSTITUTIONAL = "institutional", "Institucional"
 
     class Status(models.TextChoices):
         DRAFT = "draft", "Rascunho"
+        QUEUED = "queued", "Na fila"
+        CONCEPT_GENERATING = "concept_generating", "Gerando conceito"
         CONCEPT_READY = "concept_ready", "Conceito pronto"
-        IMAGE_READY = "image_ready", "Imagem pronta"
+        IMAGE_GENERATING = "image_generating", "Gerando imagens"
+        READY_FOR_SELECTION = "ready_for_selection", "Pronto para escolher"
         APPROVED = "approved", "Aprovado"
+        PUBLISHED = "published", "Publicado"
+        FAILED = "failed", "Falhou"
 
-    title = models.CharField(max_length=180, verbose_name="Titulo")
-    story_type = models.CharField(max_length=20, choices=StoryType.choices)
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
-    source_article = models.ForeignKey(
-        "news.NewsArticle",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="story_projects",
-    )
-    equipment_configuration = models.TextField(blank=True)
-    source_custom_text = models.TextField(blank=True)
-    user_request = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    class Format(models.TextChoices):
+        STORY = "story", "Story 1080x1920"
+        FEED = "feed", "Feed 1080x1350"
+        SQUARE = "square", "Quadrado 1080x1080"
+
+    class BrandMode(models.TextChoices):
+        BLAST = "blast", "Blast"
+        BETA = "beta", "Beta"
+
+    title = models.CharField(max_length=200)
+    slug = models.SlugField(max_length=220, unique=True, blank=True)
+    content_type = models.CharField(max_length=20, choices=ContentType.choices, default=ContentType.NEWS)
+    brand_mode = models.CharField(max_length=10, choices=BrandMode.choices, default=BrandMode.BLAST)
+    status = models.CharField(max_length=30, choices=Status.choices, default=Status.DRAFT)
+    target_format = models.CharField(max_length=20, choices=Format.choices, default=Format.STORY)
+    topic = models.CharField(max_length=200, blank=True)
+    custom_brief = models.TextField(blank=True)
+    promotional_price = models.CharField(max_length=80, blank=True)
+    call_to_action = models.CharField(max_length=140, blank=True)
+    adjustment_request = models.TextField(blank=True, help_text="Único campo para pedir ajuste de conceito e das próximas imagens.")
+    article = models.ForeignKey(NewsArticle, on_delete=models.SET_NULL, blank=True, null=True, related_name="story_projects")
+    bulk_batch = models.ForeignKey(BulkProjectBatch, on_delete=models.SET_NULL, blank=True, null=True, related_name="projects")
+    requested_image_count = models.PositiveSmallIntegerField(default=2)
+    error_message = models.TextField(blank=True)
 
     class Meta:
         ordering = ["-updated_at", "-created_at"]
@@ -35,93 +86,91 @@ class StoryProject(models.Model):
     def __str__(self) -> str:
         return self.title
 
-    @property
-    def latest_version(self):
-        return self.versions.order_by("-version_number", "-created_at").first()
+    def save(self, *args, **kwargs):
+        if self.brand_mode == self.BrandMode.BETA:
+            self.target_format = self.Format.FEED
+        self.requested_image_count = 2
+        super().save(*args, **kwargs)
+        if not self.slug:
+            self.slug = f"{slugify(self.title) or 'story-project'}-{self.pk}"
+            super().save(update_fields=["slug"])
 
     @property
-    def is_news_post(self) -> bool:
-        return self.story_type == self.StoryType.NEWS
+    def current_concept(self):
+        return self.concepts.filter(is_current=True).order_by("-version_number", "-created_at").first()
 
     @property
-    def is_editorial_post(self) -> bool:
-        return self.story_type in {self.StoryType.NEWS, self.StoryType.INSTITUTIONAL}
+    def latest_ready_variants(self):
+        concept = self.current_concept
+        if not concept:
+            return []
+        return list(concept.variants.filter(status=StoryImageVariant.Status.READY).order_by("variant_number"))
 
     @property
-    def target_dimensions(self) -> tuple[int, int]:
-        if self.is_editorial_post:
-            return (1080, 1350)
-        return (1080, 1920)
-
-    @property
-    def target_format_label(self) -> str:
-        if self.is_editorial_post:
-            return "Feed 4:5"
-        return "Story 9:16"
+    def is_processing(self) -> bool:
+        return self.status in {
+            self.Status.QUEUED,
+            self.Status.CONCEPT_GENERATING,
+            self.Status.IMAGE_GENERATING,
+        }
 
 
-class StoryVersion(models.Model):
-    project = models.ForeignKey(StoryProject, on_delete=models.CASCADE, related_name="versions")
-    based_on = models.ForeignKey(
-        "self",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="next_versions",
-    )
-    version_number = models.PositiveIntegerField(editable=False)
-    change_request = models.TextField(blank=True)
-    headline = models.CharField(max_length=220, blank=True)
-    copy_text = models.TextField(blank=True)
-    caption_text = models.TextField(blank=True)
+class StoryConcept(TimeStampedModel):
+    class GenerationKind(models.TextChoices):
+        INITIAL = "initial", "Inicial"
+        REVISION = "revision", "Revisão"
+        BULK_AUTO = "bulk_auto", "Massa automática"
+
+    class Status(models.TextChoices):
+        QUEUED = "queued", "Na fila"
+        GENERATING = "generating", "Gerando"
+        READY = "ready", "Pronto"
+        FAILED = "failed", "Falhou"
+
+    project = models.ForeignKey(StoryProject, on_delete=models.CASCADE, related_name="concepts")
+    parent = models.ForeignKey("self", on_delete=models.SET_NULL, blank=True, null=True, related_name="children")
+    version_number = models.PositiveIntegerField(default=1)
+    generation_kind = models.CharField(max_length=20, choices=GenerationKind.choices, default=GenerationKind.INITIAL)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.QUEUED)
+    instruction_snapshot = models.TextField(blank=True)
+    headline = models.CharField(max_length=180, blank=True)
+    subheadline = models.CharField(max_length=220, blank=True)
+    body_text = models.TextField(blank=True)
+    price_text = models.CharField(max_length=80, blank=True)
+    call_to_action = models.CharField(max_length=140, blank=True)
     visual_direction = models.TextField(blank=True)
-    image_prompt = models.TextField(blank=True)
     prompt_snapshot = models.TextField(blank=True)
-    generation_notes = models.TextField(blank=True)
-    text_model = models.CharField(max_length=120, blank=True)
-    image_model = models.CharField(max_length=120, blank=True)
-    generated_image = models.FileField(upload_to="stories/generated/%Y/%m/%d/", blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    provider_response = models.TextField(blank=True)
+    is_current = models.BooleanField(default=True)
 
     class Meta:
         ordering = ["-version_number", "-created_at"]
-        constraints = [
-            models.UniqueConstraint(
-                fields=["project", "version_number"],
-                name="unique_story_version_per_project",
-            )
-        ]
+        unique_together = [("project", "version_number")]
 
     def __str__(self) -> str:
-        return f"{self.project.title} v{self.version_number}"
+        return f"{self.project.title} concept v{self.version_number}"
 
-    def save(self, *args, **kwargs):
-        if not self.version_number:
-            last_version = (
-                type(self)
-                .objects.filter(project=self.project)
-                .order_by("-version_number")
-                .values_list("version_number", flat=True)
-                .first()
-            )
-            self.version_number = (last_version or 0) + 1
-        super().save(*args, **kwargs)
 
-    @property
-    def has_concept(self) -> bool:
-        return bool(self.copy_text or self.visual_direction or self.image_prompt)
+class StoryImageVariant(TimeStampedModel):
+    class Status(models.TextChoices):
+        QUEUED = "queued", "Na fila"
+        GENERATING = "generating", "Gerando"
+        READY = "ready", "Pronta"
+        FAILED = "failed", "Falhou"
 
-    @property
-    def has_image(self) -> bool:
-        return bool(self.generated_image)
+    concept = models.ForeignKey(StoryConcept, on_delete=models.CASCADE, related_name="variants")
+    variant_number = models.PositiveSmallIntegerField(default=1)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.QUEUED)
+    image_prompt_snapshot = models.TextField(blank=True)
+    provider_response = models.TextField(blank=True)
+    asset = models.FileField(upload_to=story_asset_upload_to, blank=True)
+    asset_mime_type = models.CharField(max_length=60, blank=True)
+    error_message = models.TextField(blank=True)
+    is_selected = models.BooleanField(default=False)
 
-    @property
-    def image_extension(self) -> str:
-        if not self.generated_image:
-            return ""
-        _, _, extension = self.generated_image.name.lower().rpartition(".")
-        return extension
+    class Meta:
+        ordering = ["variant_number", "-created_at"]
+        unique_together = [("concept", "variant_number")]
 
-    @property
-    def is_svg_image(self) -> bool:
-        return self.image_extension == "svg"
+    def __str__(self) -> str:
+        return f"{self.concept.project.title} v{self.concept.version_number}.{self.variant_number}"

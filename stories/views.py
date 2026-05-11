@@ -1,242 +1,153 @@
-import mimetypes
+from __future__ import annotations
 
-from django.conf import settings
 from django.contrib import messages
-from django.core.files.storage import default_storage
-from django.http import FileResponse, Http404
+from django.contrib.auth.decorators import login_required
+from django.db.models import Prefetch, Q
+from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils import timezone
 
-from branding.models import BrandGuide
-
-from .forms import ChangeRequestForm, StoryProjectForm
-from .models import StoryProject, StoryVersion
-from .services import (
-    ConceptGenerationError,
-    ImageGenerationError,
-    generate_image_asset,
-    generate_story_concept,
-    is_openai_configured,
-    refine_image_direction,
-)
+from stories.forms import BulkProjectBatchForm, StoryProjectForm
+from stories.models import BulkProjectBatch, StoryConcept, StoryImageVariant, StoryProject
+from stories.tasks import queue_bulk_batch, queue_project_generation
 
 
-def _base_generation_context():
-    return {
-        "openai_ready": is_openai_configured(),
-        "openai_image_model": settings.OPENAI_IMAGE_MODEL,
-    }
-
-
-def dashboard(request):
-    guide = BrandGuide.get_active()
+@login_required
+def home(request: HttpRequest) -> HttpResponse:
     if request.method == "POST":
-        form = StoryProjectForm(request.POST)
-        if form.is_valid():
-            project = form.save()
-            messages.success(request, "Projeto criado. Gere o conceito para iniciar o workflow.")
-            return redirect("stories:project-detail", pk=project.pk)
-    else:
-        form = StoryProjectForm()
+        return _handle_home_post(request)
 
-    projects = StoryProject.objects.select_related("source_article").prefetch_related("versions")[:12]
+    query = request.GET.get("q", "").strip()
+    projects = StoryProject.objects.order_by("-updated_at")
+    if query:
+        projects = projects.filter(Q(title__icontains=query) | Q(topic__icontains=query) | Q(custom_brief__icontains=query))
+    projects = list(projects[:24])
+    batches = BulkProjectBatch.objects.order_by("-created_at")[:6]
+    has_processing = any(project.is_processing for project in projects) or any(
+        batch.status in {BulkProjectBatch.Status.QUEUED, BulkProjectBatch.Status.PARSING, BulkProjectBatch.Status.CREATING, BulkProjectBatch.Status.GENERATING}
+        for batch in batches
+    )
     return render(
         request,
-        "stories/dashboard.html",
+        "stories/home.html",
         {
-            "form": form,
-            "guide": guide,
             "projects": projects,
-            **_base_generation_context(),
+            "batches": batches,
+            "project_count": StoryProject.objects.count(),
+            "batch_form": BulkProjectBatchForm(),
+            "search_query": query,
+            "has_processing": has_processing,
         },
     )
 
 
-def _create_concept_version(
-    project: StoryProject,
-    guide: BrandGuide,
-    change_request: str = "",
-    base_version: StoryVersion | None = None,
-) -> StoryVersion:
-    concept = generate_story_concept(
-        project=project,
-        guide=guide,
-        change_request=change_request,
-        base_version=base_version,
-    )
-    version = StoryVersion(
-        project=project,
-        based_on=base_version,
-        change_request=change_request,
-        headline=concept["headline"],
-        copy_text=concept["copy_text"],
-        caption_text=concept["caption_text"],
-        visual_direction=concept["visual_direction"],
-        image_prompt=concept["image_prompt"],
-        generation_notes=concept["generation_notes"],
-        text_model=concept["text_model"],
-    )
-    version.save()
-    project.status = StoryProject.Status.CONCEPT_READY
-    project.save(update_fields=["status", "updated_at"])
-    return version
+@login_required
+def create_project(request: HttpRequest) -> HttpResponse:
+    if request.method == "POST":
+        form = StoryProjectForm(request.POST)
+        if form.is_valid():
+            project = form.save(commit=False)
+            project.status = StoryProject.Status.DRAFT
+            project.save()
+            messages.success(request, "Projeto criado. Agora voce pode disparar a geracao async.")
+            return redirect("project_detail", slug=project.slug)
+    else:
+        form = StoryProjectForm(initial={"brand_mode": StoryProject.BrandMode.BLAST, "requested_image_count": 2})
+    return render(request, "stories/create_project.html", {"form": form})
 
 
-def _create_image_version(
-    project: StoryProject,
-    guide: BrandGuide,
-    base_version: StoryVersion,
-    change_request: str = "",
-) -> StoryVersion:
-    version = StoryVersion(
-        project=project,
-        based_on=base_version,
-        change_request=change_request,
-        headline=base_version.headline,
-        copy_text=base_version.copy_text,
-        caption_text=base_version.caption_text,
-        visual_direction=base_version.visual_direction,
-        image_prompt=base_version.image_prompt,
-        generation_notes=base_version.generation_notes,
-        text_model=base_version.text_model,
-    )
-
-    if change_request.strip():
-        refined = refine_image_direction(base_version, guide, change_request)
-        version.visual_direction = refined["visual_direction"]
-        version.image_prompt = refined["image_prompt"]
-        version.generation_notes = refined["generation_notes"]
-        version.text_model = refined["text_model"]
-
-    version.save()
-    try:
-        file_name, content, final_prompt, image_model, image_note = generate_image_asset(version, guide, change_request)
-    except Exception:
-        version.delete()
-        raise
-    version.prompt_snapshot = final_prompt
-    version.image_model = image_model
-    version.generation_notes = image_note
-    version.generated_image.save(file_name, content, save=False)
-    version.save(update_fields=["prompt_snapshot", "image_model", "generation_notes", "generated_image"])
-
-    project.status = StoryProject.Status.IMAGE_READY
-    project.save(update_fields=["status", "updated_at"])
-    return version
-
-
-def project_detail(request, pk: int):
-    project = get_object_or_404(
-        StoryProject.objects.select_related("source_article").prefetch_related("versions"),
-        pk=pk,
-    )
-    guide = BrandGuide.get_active()
-    latest_version = project.latest_version
-
-    concept_form = ChangeRequestForm(prefix="concept")
-    image_form = ChangeRequestForm(prefix="image")
-
+@login_required
+def project_detail(request: HttpRequest, slug: str) -> HttpResponse:
+    project = get_object_or_404(StoryProject, slug=slug)
     if request.method == "POST":
         action = request.POST.get("action")
-
-        if action == "generate_concept":
-            try:
-                _create_concept_version(project=project, guide=guide)
-            except ConceptGenerationError as exc:
-                messages.error(request, str(exc))
-            else:
-                messages.success(request, "Conceito gerado com sucesso.")
-                return redirect("stories:project-detail", pk=project.pk)
-
-        if action == "refine_concept":
-            concept_form = ChangeRequestForm(request.POST, prefix="concept")
-            if concept_form.is_valid():
+        if action == "save":
+            form = StoryProjectForm(request.POST, instance=project)
+            if form.is_valid():
+                form.save()
+                messages.success(request, "Projeto atualizado.")
+                return redirect("project_detail", slug=project.slug)
+        elif action == "generate":
+            form = StoryProjectForm(request.POST, instance=project)
+            if form.is_valid():
+                form.save()
+                project.status = StoryProject.Status.QUEUED
+                project.error_message = ""
+                project.save(update_fields=["status", "error_message", "updated_at"])
                 try:
-                    _create_concept_version(
-                        project=project,
-                        guide=guide,
-                        change_request=concept_form.cleaned_data["change_request"],
-                        base_version=latest_version,
-                    )
-                except ConceptGenerationError as exc:
-                    messages.error(request, str(exc))
-                else:
-                    messages.success(request, "Nova versao de conceito criada.")
-                    return redirect("stories:project-detail", pk=project.pk)
+                    queue_project_generation.delay(project.pk)
+                except Exception as exc:  # noqa: BLE001
+                    project.status = StoryProject.Status.FAILED
+                    project.error_message = f"Fila assíncrona indisponível: {exc}"
+                    project.save(update_fields=["status", "error_message", "updated_at"])
+                    messages.error(request, project.error_message)
+                    return redirect("project_detail", slug=project.slug)
+                messages.success(request, "Geração colocada na fila. A página vai atualizar automaticamente.")
+                return redirect("project_detail", slug=project.slug)
+        else:
+            return _handle_variant_action(request, project)
+    else:
+        form = StoryProjectForm(instance=project)
 
-        if action == "generate_image":
-            if not latest_version or not latest_version.has_concept:
-                messages.error(request, "Gere ou ajuste o conceito antes de renderizar a imagem.")
-            else:
-                try:
-                    _create_image_version(project=project, guide=guide, base_version=latest_version)
-                except ImageGenerationError as exc:
-                    messages.error(request, str(exc))
-                else:
-                    messages.success(request, "Imagem gerada e salva no historico.")
-                    return redirect("stories:project-detail", pk=project.pk)
-
-        if action == "refine_image":
-            image_form = ChangeRequestForm(request.POST, prefix="image")
-            if image_form.is_valid():
-                if not latest_version or not latest_version.has_concept:
-                    messages.error(request, "Gere um conceito antes de pedir ajustes na imagem.")
-                else:
-                    try:
-                        _create_image_version(
-                            project=project,
-                            guide=guide,
-                            base_version=latest_version,
-                            change_request=image_form.cleaned_data["change_request"],
-                        )
-                    except ImageGenerationError as exc:
-                        messages.error(request, str(exc))
-                    else:
-                        messages.success(request, "Nova versao de imagem criada com os ajustes pedidos.")
-                        return redirect("stories:project-detail", pk=project.pk)
-
-        if action == "approve":
-            if not latest_version or not latest_version.has_image:
-                messages.error(request, "A aprovacao exige uma imagem gerada.")
-            else:
-                project.status = StoryProject.Status.APPROVED
-                project.save(update_fields=["status", "updated_at"])
-                messages.success(request, "Post aprovado.")
-                return redirect("stories:project-detail", pk=project.pk)
-
-    versions = project.versions.all()
+    concept = project.current_concept
+    variants = list(concept.variants.order_by("variant_number")) if concept else []
     return render(
         request,
         "stories/project_detail.html",
         {
             "project": project,
-            "guide": guide,
-            "latest_version": latest_version,
-            "versions": versions,
-            "concept_form": concept_form,
-            "image_form": image_form,
-            **_base_generation_context(),
+            "form": form,
+            "concept": concept,
+            "variants": variants,
+            "has_processing": project.is_processing,
         },
     )
 
 
-def download_version_image(request, version_id: int):
-    version = get_object_or_404(StoryVersion.objects.select_related("project"), pk=version_id)
-    if not version.generated_image:
-        raise Http404("Esta versao nao possui imagem gerada.")
-    try:
-        file_handle = default_storage.open(version.generated_image.name, "rb")
-    except FileNotFoundError as exc:
-        raise Http404("O arquivo desta versao nao esta mais disponivel no storage.") from exc
-    return FileResponse(file_handle, as_attachment=True, filename=version.generated_image.name.rsplit("/", 1)[-1])
+def _handle_variant_action(request: HttpRequest, project: StoryProject) -> HttpResponse:
+    variant_id = request.POST.get("variant_id")
+    variant = get_object_or_404(StoryImageVariant, pk=variant_id, concept__project=project)
+    variant.concept.variants.update(is_selected=False)
+    variant.is_selected = True
+    variant.save(update_fields=["is_selected", "updated_at"])
+    project.status = StoryProject.Status.APPROVED
+    project.save(update_fields=["status", "updated_at"])
+    messages.success(request, f"Variante {variant.variant_number} marcada como selecionada.")
+    return redirect("project_detail", slug=project.slug)
 
 
-def preview_version_image(request, version_id: int):
-    version = get_object_or_404(StoryVersion.objects.select_related("project"), pk=version_id)
-    if not version.generated_image:
-        raise Http404("Esta versao nao possui imagem gerada.")
-    try:
-        file_handle = default_storage.open(version.generated_image.name, "rb")
-    except FileNotFoundError as exc:
-        raise Http404("O arquivo desta versao nao esta mais disponivel no storage.") from exc
-    content_type, _ = mimetypes.guess_type(version.generated_image.name)
-    return FileResponse(file_handle, content_type=content_type or "application/octet-stream")
+def _handle_home_post(request: HttpRequest) -> HttpResponse:
+    action = request.POST.get("action")
+    if action == "bulk_create":
+        form = BulkProjectBatchForm(request.POST)
+        if form.is_valid():
+            batch = form.save(commit=False)
+            batch.name = f"Lote {timezone.now().strftime('%d/%m %H:%M')}"
+            batch.status = BulkProjectBatch.Status.QUEUED
+            batch.save()
+            try:
+                queue_bulk_batch.delay(batch.pk)
+            except Exception as exc:  # noqa: BLE001
+                batch.status = BulkProjectBatch.Status.FAILED
+                batch.error_message = f"Fila assíncrona indisponível: {exc}"
+                batch.save(update_fields=["status", "error_message", "updated_at"])
+                messages.error(request, batch.error_message)
+                return redirect("home")
+            messages.success(request, "Lote enviado para processamento assíncrono.")
+            return redirect("home")
+        projects = list(StoryProject.objects.order_by("-updated_at")[:24])
+        batches = BulkProjectBatch.objects.order_by("-created_at")[:6]
+        return render(
+            request,
+            "stories/home.html",
+            {
+                "projects": projects,
+                "batches": batches,
+                "project_count": StoryProject.objects.count(),
+                "batch_form": form,
+                "search_query": "",
+                "has_processing": True,
+            },
+        )
+    return redirect("home")
