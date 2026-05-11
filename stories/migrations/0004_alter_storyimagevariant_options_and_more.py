@@ -3,6 +3,50 @@
 from django.db import migrations, models
 
 
+def add_field_if_missing(apps, schema_editor, model_name: str, field_name: str, field):
+    model = apps.get_model("stories", model_name)
+    table_name = model._meta.db_table
+    with schema_editor.connection.cursor() as cursor:
+        columns = {column.name for column in schema_editor.connection.introspection.get_table_description(cursor, table_name)}
+    if field_name in columns:
+        return
+    field.set_attributes_from_name(field_name)
+    schema_editor.add_field(model, field)
+
+
+def add_storyimagevariant_target_format(apps, schema_editor):
+    add_field_if_missing(
+        apps,
+        schema_editor,
+        "StoryImageVariant",
+        "target_format",
+        models.CharField(
+            choices=[
+                ("story", "Story 1080x1920"),
+                ("feed", "Feed 1080x1350"),
+                ("landscape", "1920x1080"),
+                ("square", "Quadrado 1080x1080"),
+            ],
+            default="feed",
+            max_length=20,
+        ),
+    )
+
+
+def add_storyproject_target_formats(apps, schema_editor):
+    add_field_if_missing(
+        apps,
+        schema_editor,
+        "StoryProject",
+        "target_formats",
+        models.JSONField(blank=True, default=list),
+    )
+
+
+def noop(apps, schema_editor):
+    return None
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -18,15 +62,29 @@ class Migration(migrations.Migration):
             name='storyimagevariant',
             unique_together=set(),
         ),
-        migrations.AddField(
-            model_name='storyimagevariant',
-            name='target_format',
-            field=models.CharField(choices=[('story', 'Story 1080x1920'), ('feed', 'Feed 1080x1350'), ('landscape', '1920x1080'), ('square', 'Quadrado 1080x1080')], default='feed', max_length=20),
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                migrations.RunPython(add_storyimagevariant_target_format, noop),
+            ],
+            state_operations=[
+                migrations.AddField(
+                    model_name='storyimagevariant',
+                    name='target_format',
+                    field=models.CharField(choices=[('story', 'Story 1080x1920'), ('feed', 'Feed 1080x1350'), ('landscape', '1920x1080'), ('square', 'Quadrado 1080x1080')], default='feed', max_length=20),
+                ),
+            ],
         ),
-        migrations.AddField(
-            model_name='storyproject',
-            name='target_formats',
-            field=models.JSONField(blank=True, default=list),
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                migrations.RunPython(add_storyproject_target_formats, noop),
+            ],
+            state_operations=[
+                migrations.AddField(
+                    model_name='storyproject',
+                    name='target_formats',
+                    field=models.JSONField(blank=True, default=list),
+                ),
+            ],
         ),
         migrations.AlterField(
             model_name='storyproject',
