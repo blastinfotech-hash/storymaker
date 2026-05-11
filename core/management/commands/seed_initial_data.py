@@ -54,11 +54,19 @@ class Command(BaseCommand):
         for source in DEFAULT_SOURCES:
             defaults = dict(source)
             _, created = NewsSource.objects.update_or_create(slug=source["slug"], defaults=defaults)
-            if "site_url" in existing_columns:
-                with connection.cursor() as cursor:
-                    cursor.execute(
-                        'UPDATE "news_newssource" SET site_url = COALESCE(NULLIF(site_url, \'\'), website_url, \'\') WHERE slug = %s',
-                        [source["slug"]],
-                    )
+            self._backfill_legacy_columns(existing_columns, source["slug"])
             created_count += int(created)
         self.stdout.write(self.style.SUCCESS(f"Seeded RSS sources. New rows: {created_count}"))
+
+    def _backfill_legacy_columns(self, existing_columns: set[str], slug: str) -> None:
+        updates = []
+        if "site_url" in existing_columns:
+            updates.append("site_url = COALESCE(NULLIF(site_url, ''), website_url, '')")
+        if "description" in existing_columns:
+            updates.append("description = COALESCE(description, '')")
+        if "last_error" in existing_columns:
+            updates.append("last_error = COALESCE(last_error, '')")
+        if not updates:
+            return
+        with connection.cursor() as cursor:
+            cursor.execute(f'UPDATE "news_newssource" SET {", ".join(updates)} WHERE slug = %s', [slug])

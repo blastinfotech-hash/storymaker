@@ -76,10 +76,19 @@ class Command(BaseCommand):
     def _repair_legacy_source_columns(self, cursor, table_name: str) -> list[str]:
         repaired = []
         columns = self._columns(cursor, table_name)
+        for column_name in ["description", "last_error"]:
+            if column_name in columns:
+                cursor.execute(f'UPDATE "{table_name}" SET {column_name} = COALESCE({column_name}, \'\')')
+                cursor.execute(f'ALTER TABLE "{table_name}" ALTER COLUMN {column_name} SET DEFAULT \'\'')
+                repaired.append(f"set default for legacy column {table_name}.{column_name}")
         if "site_url" in columns:
             cursor.execute(f'UPDATE "{table_name}" SET site_url = COALESCE(site_url, website_url, \'\')')
             cursor.execute(f'ALTER TABLE "{table_name}" ALTER COLUMN site_url SET DEFAULT \'\'')
             repaired.append(f"set default for legacy column {table_name}.site_url")
+        for column_name in ["last_fetched_at"]:
+            if column_name in columns:
+                cursor.execute(f'ALTER TABLE "{table_name}" ALTER COLUMN {column_name} DROP NOT NULL')
+                repaired.append(f"allowed null for legacy column {table_name}.{column_name}")
         return repaired
 
     def _repair_news_article(self, cursor) -> list[str]:

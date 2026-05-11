@@ -130,12 +130,86 @@ Elas apenas entram na fila.
 
 Para isso funcionar, o `worker` precisa estar rodando.
 
+O worker é este processo:
+
+```bash
+./.venv/bin/celery -A config worker --loglevel=info
+```
+
+Esse comando não é algo que você roda dentro do navegador. Ele precisa ficar ativo no servidor, como processo separado, container separado ou iniciado pelo script do container.
+
 Se o projeto ficar parado em:
 - `Queued`
 - `Generating concept`
 - `Generating images`
 
 verifique se o serviço `worker` está ativo.
+
+### Como garantir que o worker está ativo
+
+Em desenvolvimento local, use 2 terminais:
+
+Terminal 1:
+
+```bash
+redis-server
+```
+
+Terminal 2:
+
+```bash
+./.venv/bin/celery -A config worker --loglevel=info
+```
+
+Terminal 3:
+
+```bash
+./.venv/bin/python manage.py runserver 0.0.0.0:8015
+```
+
+Se quiser desenvolvimento sem fila real, configure no `.env`:
+
+```env
+CELERY_TASK_ALWAYS_EAGER=True
+```
+
+Nesse modo, o Django executa as tasks imediatamente no próprio processo. Use só para desenvolvimento.
+
+Em Docker Compose, o `docker-compose.yml` já sobe 3 serviços:
+- `web`
+- `worker`
+- `redis`
+
+Garanta que todos estão vivos:
+
+```bash
+docker compose ps
+docker compose logs -f worker
+```
+
+Em Easypanel com app único, o `Dockerfile` usa `docker/run_single_app.sh`. Esse script:
+- inicia um `redis-server` local quando `REDIS_URL` aponta para `127.0.0.1` ou `localhost`
+- espera o Redis responder
+- inicia o `celery worker`
+- inicia o Gunicorn
+
+Para esse modo, deixe no ambiente:
+
+```env
+REDIS_URL=redis://127.0.0.1:6379/0
+CELERY_BROKER_URL=
+CELERY_RESULT_BACKEND=
+CELERY_TASK_ALWAYS_EAGER=False
+```
+
+Se você usar Redis separado no Easypanel, use a URL real do serviço:
+
+```env
+REDIS_URL=redis://NOME_DO_SERVICO_REDIS:6379/0
+CELERY_BROKER_URL=
+CELERY_RESULT_BACKEND=
+CELERY_TASK_ALWAYS_EAGER=False
+```
 
 ## Local setup
 1. Criar venv:
@@ -261,19 +335,40 @@ USE_X_FORWARDED_PORT=True
 SESSION_COOKIE_SECURE=True
 CSRF_COOKIE_SECURE=True
 DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DATABASE
-REDIS_URL=redis://redis:6379/0
+REDIS_URL=redis://127.0.0.1:6379/0
 CELERY_BROKER_URL=
 CELERY_RESULT_BACKEND=
 CELERY_TASK_ALWAYS_EAGER=False
+CELERY_LOG_LEVEL=info
+CELERY_CONCURRENCY=2
+GUNICORN_TIMEOUT=120
 OPENAI_API_KEY=your-openai-key
 ```
 
 ### Atenção
 - Em app único no Easypanel, o `worker` agora sobe dentro do mesmo container por padrão.
-- Se você já tem um Redis interno no Easypanel, coloque a URL real em `REDIS_URL` e deixe `CELERY_BROKER_URL`/`CELERY_RESULT_BACKEND` vazios.
+- Se você já tem um Redis interno/separado no Easypanel, coloque a URL real em `REDIS_URL` e deixe `CELERY_BROKER_URL`/`CELERY_RESULT_BACKEND` vazios.
 - Se `CELERY_BROKER_URL` ou `CELERY_RESULT_BACKEND` ficarem como `redis://127.0.0.1:6379/0`, o app agora troca automaticamente para `REDIS_URL` quando `REDIS_URL` for um Redis interno diferente.
 - Se os projetos continuarem em `Queued`, faça um redeploy para garantir que a imagem nova foi aplicada.
 - Se o startup quebrar por schema legado, rode `python manage.py migrate` manualmente no console do app.
+
+### Erro de deploy com `news_newssource.description`
+
+Se aparecer erro parecido com:
+
+```text
+null value in column "description" of relation "news_newssource" violates not-null constraint
+```
+
+o banco de produção ainda tem colunas legadas de uma versão anterior. O startup roda automaticamente:
+
+```bash
+python manage.py repair_legacy_schema
+python manage.py migrate --noinput
+python manage.py seed_initial_data
+```
+
+Depois deste ajuste, `repair_legacy_schema` também corrige defaults das colunas antigas `description`, `last_error` e `site_url` para o seed não quebrar.
 
 ## Portas bloqueadas na VPS
 Não usar:
