@@ -59,6 +59,7 @@ class StoryProject(TimeStampedModel):
     class Format(models.TextChoices):
         STORY = "story", "Story 1080x1920"
         FEED = "feed", "Feed 1080x1350"
+        LANDSCAPE = "landscape", "1920x1080"
         SQUARE = "square", "Quadrado 1080x1080"
 
     class BrandMode(models.TextChoices):
@@ -71,6 +72,7 @@ class StoryProject(TimeStampedModel):
     brand_mode = models.CharField(max_length=10, choices=BrandMode.choices, default=BrandMode.BLAST)
     status = models.CharField(max_length=30, choices=Status.choices, default=Status.DRAFT)
     target_format = models.CharField(max_length=20, choices=Format.choices, default=Format.STORY)
+    target_formats = models.JSONField(default=list, blank=True)
     topic = models.CharField(max_length=200, blank=True)
     custom_brief = models.TextField(blank=True)
     promotional_price = models.CharField(max_length=80, blank=True)
@@ -88,9 +90,12 @@ class StoryProject(TimeStampedModel):
         return self.title
 
     def save(self, *args, **kwargs):
-        if self.brand_mode == self.BrandMode.BETA:
-            self.target_format = self.Format.FEED
         self.requested_image_count = 2
+        selected_formats = self.selected_target_formats
+        if not selected_formats:
+            selected_formats = [self.target_format or self.Format.STORY]
+        self.target_formats = selected_formats
+        self.target_format = selected_formats[0]
         if not self.slug:
             self.slug = f"{slugify(self.title) or 'story-project'}-{uuid4().hex[:8]}"
         super().save(*args, **kwargs)
@@ -104,7 +109,25 @@ class StoryProject(TimeStampedModel):
         concept = self.current_concept
         if not concept:
             return []
-        return list(concept.variants.filter(status=StoryImageVariant.Status.READY).order_by("variant_number"))
+        return list(concept.variants.filter(status=StoryImageVariant.Status.READY).order_by("target_format", "variant_number"))
+
+    @property
+    def selected_target_formats(self) -> list[str]:
+        allowed = {choice for choice, _ in self.Format.choices}
+        stored = self.target_formats or []
+        if isinstance(stored, str):
+            stored = [stored]
+        values = [value for value in stored if value in allowed]
+        if values:
+            return values
+        if self.target_format in allowed:
+            return [self.target_format]
+        return []
+
+    @property
+    def selected_target_format_labels(self) -> list[str]:
+        labels = dict(self.Format.choices)
+        return [labels[value] for value in self.selected_target_formats if value in labels]
 
     @property
     def is_processing(self) -> bool:
@@ -159,6 +182,7 @@ class StoryImageVariant(TimeStampedModel):
         FAILED = "failed", "Falhou"
 
     concept = models.ForeignKey(StoryConcept, on_delete=models.CASCADE, related_name="variants")
+    target_format = models.CharField(max_length=20, choices=StoryProject.Format.choices, default=StoryProject.Format.FEED)
     variant_number = models.PositiveSmallIntegerField(default=1)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.QUEUED)
     image_prompt_snapshot = models.TextField(blank=True)
@@ -169,8 +193,8 @@ class StoryImageVariant(TimeStampedModel):
     is_selected = models.BooleanField(default=False)
 
     class Meta:
-        ordering = ["variant_number", "-created_at"]
-        unique_together = [("concept", "variant_number")]
+        ordering = ["target_format", "variant_number", "-created_at"]
+        unique_together = [("concept", "target_format", "variant_number")]
 
     def __str__(self) -> str:
-        return f"{self.concept.project.title} v{self.concept.version_number}.{self.variant_number}"
+        return f"{self.concept.project.title} {self.target_format} v{self.concept.version_number}.{self.variant_number}"

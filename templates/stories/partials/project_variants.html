@@ -3,7 +3,7 @@
   {% for variant in variants %}
     <article class="panel">
       <div style="display:flex; justify-content:space-between; gap:8px; align-items:center;">
-        <strong>Variante {{ variant.variant_number }}</strong>
+        <strong>{{ variant.get_target_format_display }} · Variante {{ variant.variant_number }}</strong>
         <span class="badge status">{{ variant.get_status_display }}</span>
       </div>
       {% if variant.asset %}

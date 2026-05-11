@@ -2,7 +2,7 @@
   <div style="display:flex; justify-content:space-between; gap:8px; align-items:flex-start;">
     <div>
       <strong>{{ project.title }}</strong><br>
-      <span class="muted">{{ project.get_content_type_display }} · {{ project.get_target_format_display }}</span>
+      <span class="muted">{{ project.get_content_type_display }} · {{ project.selected_target_format_labels|join:", " }}</span>
     </div>
     <span class="badge {% if project.brand_mode == 'blast' %}blast{% else %}beta{% endif %}">{{ project.get_brand_mode_display }}</span>
   </div>
@@ -10,7 +10,7 @@
     <span class="badge status">{{ project.get_status_display }}</span>
     {% if project.article %}<span class="badge status">Noticia vinculada</span>{% endif %}
   </div>
-  <div class="grid" style="grid-template-columns: 1fr 1fr; margin-top:14px;">
+  <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); margin-top:14px;">
     {% for variant in project.latest_ready_variants %}
       <a href="{% url 'project_detail' slug=project.slug %}">
         <img class="preview" src="{{ variant.asset.url }}" alt="Variante {{ variant.variant_number }}">

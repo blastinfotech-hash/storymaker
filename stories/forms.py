@@ -4,13 +4,20 @@ from stories.models import BulkProjectBatch, StoryProject
 
 
 class StoryProjectForm(forms.ModelForm):
+    target_formats = forms.MultipleChoiceField(
+        label="Tamanhos a gerar",
+        choices=StoryProject.Format.choices,
+        widget=forms.CheckboxSelectMultiple,
+        required=True,
+        help_text="Selecione um ou mais tamanhos. Nenhuma escolha será sobrescrita automaticamente.",
+    )
+
     class Meta:
         model = StoryProject
         fields = [
             "title",
             "brand_mode",
             "content_type",
-            "target_format",
             "article",
             "topic",
             "custom_brief",
@@ -28,7 +35,6 @@ class StoryProjectForm(forms.ModelForm):
             "title": "Título do projeto",
             "brand_mode": "Marca visual",
             "content_type": "Tipo de projeto",
-            "target_format": "Formato",
             "article": "Artigo de origem",
             "topic": "Tema / produto",
             "custom_brief": "Descrição da arte",
@@ -40,6 +46,21 @@ class StoryProjectForm(forms.ModelForm):
             "custom_brief": "Para promocionais, informe aqui o descritivo da arte: produto, benefícios, specs e oferta.",
             "adjustment_request": "Campo único usado para orientar a próxima geração de conceito e imagens.",
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.pk:
+            self.fields["target_formats"].initial = self.instance.selected_target_formats
+        else:
+            self.fields["target_formats"].initial = [StoryProject.Format.FEED]
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.target_formats = self.cleaned_data["target_formats"]
+        instance.target_format = instance.target_formats[0]
+        if commit:
+            instance.save()
+        return instance
 
 
 class BulkProjectBatchForm(forms.ModelForm):

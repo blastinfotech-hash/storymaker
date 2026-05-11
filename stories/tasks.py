@@ -34,13 +34,15 @@ def queue_concept_images(concept_id: int) -> None:
         project.status = StoryProject.Status.IMAGE_GENERATING
         project.save(update_fields=["status", "updated_at"])
 
-        for variant_number in range(1, project.requested_image_count + 1):
-            StoryImageVariant.objects.update_or_create(
-                concept=concept,
-                variant_number=variant_number,
-                defaults={"status": StoryImageVariant.Status.QUEUED, "image_prompt_snapshot": ""},
-            )
-            generate_image_variant.delay(concept.pk, variant_number)
+        for target_format in project.selected_target_formats:
+            for variant_number in range(1, project.requested_image_count + 1):
+                StoryImageVariant.objects.update_or_create(
+                    concept=concept,
+                    target_format=target_format,
+                    variant_number=variant_number,
+                    defaults={"status": StoryImageVariant.Status.QUEUED, "image_prompt_snapshot": ""},
+                )
+                generate_image_variant.delay(concept.pk, target_format, variant_number)
     except Exception as exc:  # noqa: BLE001
         project.status = StoryProject.Status.FAILED
         project.error_message = str(exc)
@@ -48,14 +50,18 @@ def queue_concept_images(concept_id: int) -> None:
 
 
 @shared_task
-def generate_image_variant(concept_id: int, variant_number: int) -> None:
+def generate_image_variant(concept_id: int, target_format: str, variant_number: int) -> None:
     concept = StoryConcept.objects.select_related("project").get(pk=concept_id)
-    variant, _ = StoryImageVariant.objects.get_or_create(concept=concept, variant_number=variant_number)
+    variant, _ = StoryImageVariant.objects.get_or_create(
+        concept=concept,
+        target_format=target_format,
+        variant_number=variant_number,
+    )
     try:
         variant.status = StoryImageVariant.Status.GENERATING
         variant.error_message = ""
         variant.save(update_fields=["status", "error_message", "updated_at"])
-        generate_story_image_variant(concept, variant_number)
+        generate_story_image_variant(concept, target_format, variant_number)
     except Exception as exc:  # noqa: BLE001
         variant.status = StoryImageVariant.Status.FAILED
         variant.error_message = str(exc)
@@ -95,6 +101,7 @@ def queue_bulk_batch(batch_id: int) -> None:
                     content_type=StoryProject.ContentType.PROMOTIONAL,
                     brand_mode=batch.brand_mode,
                     target_format=StoryProject.Format.FEED,
+                    target_formats=[StoryProject.Format.FEED, StoryProject.Format.LANDSCAPE],
                     topic=promo["title"],
                     custom_brief=promo["description"],
                     promotional_price=promo["price"],

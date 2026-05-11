@@ -17,12 +17,11 @@
       <a class="btn secondary" href="/">Voltar para home</a>
     </div>
 
-    <form method="post" class="grid" style="margin-top:20px;">
+    <form method="post" class="grid" style="margin-top:20px;" id="project-edit-form">
       {% csrf_token %}
-      <input type="hidden" name="action" value="save">
       <div class="form-grid">
         {% for field in form %}
-          <div class="{% if field.name == 'custom_brief' or field.name == 'adjustment_request' %}full{% endif %}">
+          <div class="{% if field.name == 'custom_brief' or field.name == 'adjustment_request' or field.name == 'target_formats' %}full{% endif %}">
             <label for="{{ field.id_for_label }}">{{ field.label }}</label>
             {{ field }}
             {% if field.help_text %}<div class="muted" style="margin-top:6px;">{{ field.help_text }}</div>{% endif %}
@@ -30,7 +29,7 @@
         {% endfor %}
       </div>
       <div style="display:flex; gap:12px; flex-wrap:wrap;">
-        <button class="btn secondary" type="submit">Salvar dados</button>
+        <button class="btn secondary" type="submit" name="action" value="save">Salvar dados</button>
       </div>
     </form>
 

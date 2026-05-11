@@ -1,18 +1,10 @@
 <div style="display:flex; gap:12px; flex-wrap:wrap; margin-top:14px;">
-  <form method="post" style="margin:0;">
-    {% csrf_token %}
-    <input type="hidden" name="action" value="generate_concept">
-    <button class="btn {% if project.brand_mode == 'blast' %}blast{% else %}beta{% endif %}" type="submit">
-      {% if concept %}Gerar novo conceito{% else %}Gerar conceito{% endif %}
-    </button>
-  </form>
+  <button class="btn {% if project.brand_mode == 'blast' %}blast{% else %}beta{% endif %}" type="submit" form="project-edit-form" name="action" value="generate_concept">
+    {% if concept %}Gerar novo conceito{% else %}Gerar conceito{% endif %}
+  </button>
 
   {% if concept %}
-    <form method="post" style="margin:0;">
-      {% csrf_token %}
-      <input type="hidden" name="action" value="generate_images">
-      <button class="btn secondary" type="submit">Aprovar conceito e gerar 2 imagens</button>
-    </form>
+    <button class="btn secondary" type="submit" form="project-edit-form" name="action" value="generate_images">Aprovar conceito e gerar 2 imagens</button>
   {% endif %}
 
   <form method="post" style="margin:0;" onsubmit="return confirm('Excluir este projeto?');">

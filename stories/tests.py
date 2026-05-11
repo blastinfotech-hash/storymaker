@@ -5,8 +5,10 @@ from django.db import connection
 from django.test import TestCase
 from django.urls import reverse
 
+from stories.forms import StoryProjectForm
 from stories.services.generation import split_bulk_promotions
-from stories.models import StoryProject
+from stories.models import StoryConcept, StoryImageVariant, StoryProject
+from stories.tasks import queue_concept_images
 
 
 class BulkPromotionSplitTests(TestCase):
@@ -72,11 +74,27 @@ class ProjectWorkflowViewTests(TestCase):
             promotional_price="R$ 1000",
         )
 
-        response = self.client.post(reverse("project_detail", args=[project.slug]), {"action": "generate_concept"})
+        response = self.client.post(
+            reverse("project_detail", args=[project.slug]),
+            {
+                "action": "generate_concept",
+                "title": project.title,
+                "brand_mode": project.brand_mode,
+                "content_type": project.content_type,
+                "target_formats": [StoryProject.Format.FEED, StoryProject.Format.LANDSCAPE],
+                "article": "",
+                "topic": project.topic,
+                "custom_brief": project.custom_brief,
+                "promotional_price": project.promotional_price,
+                "call_to_action": project.call_to_action,
+                "adjustment_request": project.adjustment_request,
+            },
+        )
 
         self.assertEqual(response.status_code, 302)
         project.refresh_from_db()
         self.assertEqual(project.status, StoryProject.Status.QUEUED)
+        self.assertEqual(project.selected_target_formats, [StoryProject.Format.FEED, StoryProject.Format.LANDSCAPE])
         mocked_delay.assert_called_once_with(project.pk, False)
 
     def test_home_can_delete_project(self):
@@ -91,6 +109,66 @@ class ProjectWorkflowViewTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertFalse(StoryProject.objects.filter(pk=project.pk).exists())
+
+
+class ProjectFormatSelectionTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(username="format-tester", password="secret123", is_staff=True)
+        self.client.login(username="format-tester", password="secret123")
+
+    def test_beta_project_keeps_manually_selected_formats(self):
+        form = StoryProjectForm(
+            data={
+                "title": "Formatos beta",
+                "brand_mode": StoryProject.BrandMode.BETA,
+                "content_type": StoryProject.ContentType.PROMOTIONAL,
+                "target_formats": [StoryProject.Format.FEED, StoryProject.Format.LANDSCAPE],
+                "topic": "PC TESTE",
+                "custom_brief": "PC TESTE",
+                "promotional_price": "R$ 1000",
+                "call_to_action": "Fale",
+                "adjustment_request": "",
+                "article": "",
+            }
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        project = form.save()
+
+        self.assertEqual(project.selected_target_formats, [StoryProject.Format.FEED, StoryProject.Format.LANDSCAPE])
+        self.assertEqual(project.target_format, StoryProject.Format.FEED)
+
+    @patch("stories.tasks.generate_image_variant.delay")
+    def test_queue_concept_images_creates_two_variants_per_selected_format(self, mocked_delay):
+        project = StoryProject.objects.create(
+            title="Multiformato",
+            brand_mode=StoryProject.BrandMode.BETA,
+            content_type=StoryProject.ContentType.PROMOTIONAL,
+            target_formats=[StoryProject.Format.FEED, StoryProject.Format.LANDSCAPE],
+            target_format=StoryProject.Format.FEED,
+            topic="PC TESTE",
+            custom_brief="PC TESTE",
+            promotional_price="R$ 1000",
+        )
+        concept = StoryConcept.objects.create(project=project, version_number=1, status=StoryConcept.Status.READY, is_current=True)
+
+        queue_concept_images(concept.pk)
+
+        created_pairs = set(StoryImageVariant.objects.filter(concept=concept).values_list("target_format", "variant_number"))
+        self.assertEqual(
+            created_pairs,
+            {
+                (StoryProject.Format.FEED, 1),
+                (StoryProject.Format.FEED, 2),
+                (StoryProject.Format.LANDSCAPE, 1),
+                (StoryProject.Format.LANDSCAPE, 2),
+            },
+        )
+        mocked_delay.assert_any_call(concept.pk, StoryProject.Format.FEED, 1)
+        mocked_delay.assert_any_call(concept.pk, StoryProject.Format.FEED, 2)
+        mocked_delay.assert_any_call(concept.pk, StoryProject.Format.LANDSCAPE, 1)
+        mocked_delay.assert_any_call(concept.pk, StoryProject.Format.LANDSCAPE, 2)
 
     def test_project_delete_does_not_crash_with_legacy_storyversion_table(self):
         project = StoryProject.objects.create(

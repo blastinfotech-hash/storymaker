@@ -96,9 +96,13 @@ BETA_GUIDE = BrandSystem(
 
         Paleta: azul corporativo dominante transmitindo tecnologia, confiança, segurança, profissionalismo e varejo moderno. Usar azul em caixas promocionais, boxes de preço, rodapés, CTAs, destaques e headlines. Tons aproximados: #0077D9, #0066CC, #0A5DBB. Branco para preços e títulos sobre azul. Preto para headlines secundárias, subtítulos e especificações. Cinza para fundo, sombras e profundidade. Madeira clara pode aparecer como base física clean, horizontal, pouco saturada e com baixa presença visual.
 
-        Tipografia: sans-serif moderna, referência Montserrat, Gotham, Poppins, Anton ou Arial Rounded em casos específicos. Predominar caixa alta, bold agressivo, alta legibilidade, pouco ornamento, espaçamento controlado e leitura mobile-first. Promoção: ultra bold, branco sobre azul, caixa alta. Preço: extremamente grande, branco, peso pesado e leitura instantânea. Produto: preto, bold médio, centralizado. Especificações: menor escala, alta legibilidade e múltiplas linhas curtas.
+        Tipografia: sans-serif moderna, referência Montserrat, Gotham, Poppins, Anton ou Arial Rounded em casos específicos. Predominar caixa alta, bold agressivo, alta legibilidade, pouco ornamento, espaçamento controlado e leitura mobile-first. Promoção: ultra bold, branco sobre azul, caixa alta. Preço: destacado, branco, peso pesado e leitura instantânea, mas em escala equilibrada com o restante do layout. Produto: preto, bold médio, centralizado. Especificações: menor escala, alta legibilidade e múltiplas linhas curtas.
 
-        Boxes promocionais: cantos extremamente arredondados, gradiente azul, sombra suave e contraste forte. Box de preço é o principal elemento de conversão, com estrutura POR, R$, VALOR, ,00, À VISTA e PARCELAMENTO quando houver. Valor deve ser extremamente dominante e centralizado.
+        Ajuste obrigatório de composição: o preço deve ter destaque comercial claro, mas não pode dominar exageradamente a peça nem ocupar área visual excessiva. Ele deve ser relevante sem roubar o protagonismo do produto e da hierarquia geral. Prefira caixa de preço equilibrada, legível e proporcional ao layout.
+
+        Destaque visual das informações: sempre que fizer sentido, apresentar benefícios e especificações relevantes com apoio de ícones visuais simples, limpos e coerentes com tecnologia e varejo corporativo, sem excesso de elementos e sem transformar a arte em infográfico poluído.
+
+        Boxes promocionais: cantos extremamente arredondados, gradiente azul, sombra suave e contraste forte. Box de preço é um elemento importante de conversão, com estrutura POR, R$, VALOR, ,00, À VISTA e PARCELAMENTO quando houver. O valor deve ter destaque, mas sem escala exagerada ou ocupação excessiva da peça.
 
         Produto: protagonista sempre. Grande escala, centralizado, alta nitidez, iluminação suave, recorte limpo, sombras suaves e profundidade realista. Evitar brilho exagerado, reflexos agressivos, glow, estética gamer e saturação excessiva.
 
@@ -108,12 +112,12 @@ BETA_GUIDE = BrandSystem(
 
         Proibições: fundos poluídos, neon exagerado, RGB gamer, sombras pesadas, glow excessivo, gradientes agressivos, tipografia fina, excesso de elementos, excesso de cores, desalinhamentos, textos longos e ícones desnecessários.
 
-        Fórmula ideal: topo com headline; subhead com benefício ou especificações rápidas; centro com produto e preço; base com resumo e CTA institucional. DNA consolidado: varejo tecnológico, promoção direta, conversão rápida, estética limpa, mobile-first, produto protagonista, preço dominante, azul corporativo forte, tipografia bold, fundo desfocado clean, composição modular, contraste extremo e alta legibilidade.
+        Fórmula ideal: topo com headline; subhead com benefício ou especificações rápidas; centro com produto e preço equilibrado; base com resumo e CTA institucional. DNA consolidado: varejo tecnológico, promoção direta, conversão rápida, estética limpa, mobile-first, produto protagonista, preço com destaque controlado, azul corporativo forte, tipografia bold, fundo desfocado clean, composição modular, contraste extremo e alta legibilidade.
         """
     ).strip(),
     master_prompt=(
         "Create a clean Brazilian computer store promotional ad for Beta Informatica, corporate blue visual identity, vertical social ad, "
-        "aggressive promotional headline, dominant price box, centered realistic product, clean blurred store or office background, bold sans-serif typography and extremely clear commercial hierarchy, without logos or brand marks in the image."
+        "aggressive promotional headline, balanced price box with strong but controlled emphasis, centered realistic product, clean blurred store or office background, bold sans-serif typography, simple tech icons to support relevant specs, and extremely clear commercial hierarchy, without logos or brand marks in the image."
     ),
 )
 
@@ -160,14 +164,18 @@ def generate_story_concept(project: StoryProject) -> StoryConcept:
     return concept
 
 
-def generate_story_image_variant(concept: StoryConcept, variant_number: int) -> StoryImageVariant:
+def generate_story_image_variant(concept: StoryConcept, target_format: str, variant_number: int) -> StoryImageVariant:
     brand = get_brand_system(concept.project.brand_mode)
-    variant, _ = StoryImageVariant.objects.get_or_create(concept=concept, variant_number=variant_number)
-    prompt_snapshot = build_image_prompt(concept, brand, variant_number)
+    variant, _ = StoryImageVariant.objects.get_or_create(
+        concept=concept,
+        target_format=target_format,
+        variant_number=variant_number,
+    )
+    prompt_snapshot = build_image_prompt(concept, brand, target_format, variant_number)
     provider_response = ""
-    content = build_svg_placeholder(concept, brand, variant_number)
+    content = build_svg_placeholder(concept, brand, target_format, variant_number)
     mime_type = "image/svg+xml"
-    filename = f"variant-{variant_number}.svg"
+    filename = f"{target_format}-variant-{variant_number}.svg"
 
     if settings.OPENAI_API_KEY:
         try:
@@ -175,11 +183,11 @@ def generate_story_image_variant(concept: StoryConcept, variant_number: int) -> 
             response = client.images.generate(
                 model=settings.OPENAI_IMAGE_MODEL,
                 prompt=prompt_snapshot,
-                size=image_size_for_format(concept.project.target_format),
+                size=image_size_for_format(target_format),
             )
             content = base64.b64decode(response.data[0].b64_json)
             mime_type = "image/png"
-            filename = f"variant-{variant_number}.png"
+            filename = f"{target_format}-variant-{variant_number}.png"
             provider_response = f"Image generated with {settings.OPENAI_IMAGE_MODEL}."
         except Exception as exc:  # noqa: BLE001
             provider_response = f"OpenAI image generation failed: {exc}"
@@ -254,8 +262,9 @@ def build_story_prompt(project: StoryProject, brand: BrandSystem, latest: StoryC
     ).strip()
 
 
-def build_image_prompt(concept: StoryConcept, brand: BrandSystem, variant_number: int) -> str:
+def build_image_prompt(concept: StoryConcept, brand: BrandSystem, target_format: str, variant_number: int) -> str:
     project = concept.project
+    format_label = dict(StoryProject.Format.choices).get(target_format, target_format)
     if project.content_type == StoryProject.ContentType.PROMOTIONAL:
         facts = promotional_source_facts(project)
         product_category = infer_product_category(facts)
@@ -265,7 +274,7 @@ def build_image_prompt(concept: StoryConcept, brand: BrandSystem, variant_number
 
             Brand mode: {project.get_brand_mode_display()}
             Layout summary: {brand.layout_summary}
-            Output format: {project.get_target_format_display()}
+            Output format: {format_label}
             Variation number: {variant_number} of {project.requested_image_count}
             Product category lock: {product_category}
 
@@ -302,7 +311,7 @@ def build_image_prompt(concept: StoryConcept, brand: BrandSystem, variant_number
         Price: {concept.price_text}
         CTA: {concept.call_to_action}
         Visual direction: {concept.visual_direction}
-        Output format: {project.get_target_format_display()}
+        Output format: {format_label}
         Variation number: {variant_number} of {project.requested_image_count}
 
         Create a distinct variation while keeping the same campaign concept, same product positioning and same brand identity.
@@ -418,7 +427,7 @@ def build_promotional_payload(project: StoryProject, brand: BrandSystem, latest:
     cta = (project.call_to_action or "Fale conosco agora").strip()
     refinement = f" Ajuste solicitado: {project.adjustment_request.strip()}" if project.adjustment_request.strip() else ""
     visual_direction = (
-        f"Seguir o DNA {brand.label} com {brand.layout_summary}. Produto protagonista, preço dominante, hierarquia comercial limpa e área segura para texto legível gerado na própria arte."
+        f"Seguir o DNA {brand.label} com {brand.layout_summary}. Produto protagonista, preço com destaque controlado, hierarquia comercial limpa, ícones simples para apoiar informações relevantes e área segura para texto legível gerado na própria arte."
         f" Categoria do produto travada em {infer_product_category(promotional_source_facts(project))}."
         f"{refinement}"
     )
@@ -459,8 +468,8 @@ def infer_product_category(text: str) -> str:
     return "computer product"
 
 
-def build_svg_placeholder(concept: StoryConcept, brand: BrandSystem, variant_number: int) -> bytes:
-    width, height = canvas_for_format(concept.project.target_format)
+def build_svg_placeholder(concept: StoryConcept, brand: BrandSystem, target_format: str, variant_number: int) -> bytes:
+    width, height = canvas_for_format(target_format)
     headline = escape_xml(concept.headline[:52])
     subheadline = escape_xml(concept.subheadline[:90])
     body = escape_xml(concept.body_text[:180])
@@ -491,6 +500,8 @@ def build_svg_placeholder(concept: StoryConcept, brand: BrandSystem, variant_num
 def canvas_for_format(target_format: str) -> tuple[int, int]:
     if target_format == StoryProject.Format.FEED:
         return 1080, 1350
+    if target_format == StoryProject.Format.LANDSCAPE:
+        return 1920, 1080
     if target_format == StoryProject.Format.SQUARE:
         return 1080, 1080
     return 1080, 1920
@@ -499,6 +510,8 @@ def canvas_for_format(target_format: str) -> tuple[int, int]:
 def image_size_for_format(target_format: str) -> str:
     if target_format == StoryProject.Format.FEED:
         return "1024x1536"
+    if target_format == StoryProject.Format.LANDSCAPE:
+        return "1536x1024"
     if target_format == StoryProject.Format.SQUARE:
         return "1024x1024"
     return "1024x1792"

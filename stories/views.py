@@ -83,37 +83,43 @@ def project_detail(request: HttpRequest, slug: str) -> HttpResponse:
                 messages.success(request, "Projeto atualizado.")
                 return redirect("project_detail", slug=project.slug)
         elif action == "generate_concept":
-            project.status = StoryProject.Status.QUEUED
-            project.error_message = ""
-            project.save(update_fields=["status", "error_message", "updated_at"])
-            try:
-                queue_project_generation.delay(project.pk, False)
-            except Exception as exc:  # noqa: BLE001
-                project.status = StoryProject.Status.FAILED
-                project.error_message = f"Fila assíncrona indisponível: {exc}"
+            form = StoryProjectForm(request.POST, instance=project)
+            if form.is_valid():
+                form.save()
+                project.status = StoryProject.Status.QUEUED
+                project.error_message = ""
                 project.save(update_fields=["status", "error_message", "updated_at"])
-                messages.error(request, project.error_message)
+                try:
+                    queue_project_generation.delay(project.pk, False)
+                except Exception as exc:  # noqa: BLE001
+                    project.status = StoryProject.Status.FAILED
+                    project.error_message = f"Fila assíncrona indisponível: {exc}"
+                    project.save(update_fields=["status", "error_message", "updated_at"])
+                    messages.error(request, project.error_message)
+                    return redirect("project_detail", slug=project.slug)
+                messages.success(request, "Geração de conceito colocada na fila.")
                 return redirect("project_detail", slug=project.slug)
-            messages.success(request, "Geração de conceito colocada na fila.")
-            return redirect("project_detail", slug=project.slug)
         elif action == "generate_images":
-            concept = project.current_concept
-            if concept is None:
-                messages.error(request, "Gere um conceito antes de solicitar as imagens.")
-                return redirect("project_detail", slug=project.slug)
-            project.status = StoryProject.Status.IMAGE_GENERATING
-            project.error_message = ""
-            project.save(update_fields=["status", "error_message", "updated_at"])
-            try:
-                queue_concept_images.delay(concept.pk)
-            except Exception as exc:  # noqa: BLE001
-                project.status = StoryProject.Status.FAILED
-                project.error_message = f"Fila assíncrona indisponível: {exc}"
+            form = StoryProjectForm(request.POST, instance=project)
+            if form.is_valid():
+                form.save()
+                concept = project.current_concept
+                if concept is None:
+                    messages.error(request, "Gere um conceito antes de solicitar as imagens.")
+                    return redirect("project_detail", slug=project.slug)
+                project.status = StoryProject.Status.IMAGE_GENERATING
+                project.error_message = ""
                 project.save(update_fields=["status", "error_message", "updated_at"])
-                messages.error(request, project.error_message)
+                try:
+                    queue_concept_images.delay(concept.pk)
+                except Exception as exc:  # noqa: BLE001
+                    project.status = StoryProject.Status.FAILED
+                    project.error_message = f"Fila assíncrona indisponível: {exc}"
+                    project.save(update_fields=["status", "error_message", "updated_at"])
+                    messages.error(request, project.error_message)
+                    return redirect("project_detail", slug=project.slug)
+                messages.success(request, "Geração de imagens colocada na fila.")
                 return redirect("project_detail", slug=project.slug)
-            messages.success(request, "Geração de imagens colocada na fila.")
-            return redirect("project_detail", slug=project.slug)
         elif action == "delete_project":
             if _delete_project(project):
                 messages.success(request, "Projeto excluído.")

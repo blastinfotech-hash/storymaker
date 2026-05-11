@@ -2,6 +2,7 @@
   <h2 style="margin-top:0;">Status operacional</h2>
   <ul>
     <li>Projeto: {{ project.get_status_display }}</li>
+    <li>Tamanhos selecionados: {{ project.selected_target_format_labels|join:", " }}</li>
     <li>Variantes solicitadas por rodada: {{ project.requested_image_count }}</li>
     <li>Última atualização: {{ project.updated_at }}</li>
   </ul>

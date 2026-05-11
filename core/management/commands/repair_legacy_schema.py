@@ -118,6 +118,7 @@ class Command(BaseCommand):
         self._add_column(cursor, table, "content_type", "varchar(20) NOT NULL DEFAULT 'news'", repaired)
         self._add_column(cursor, table, "brand_mode", "varchar(10) NOT NULL DEFAULT 'blast'", repaired)
         self._add_column(cursor, table, "target_format", "varchar(20) NOT NULL DEFAULT 'story'", repaired)
+        self._add_column(cursor, table, "target_formats", "text NOT NULL DEFAULT '[]'", repaired)
         self._add_column(cursor, table, "topic", "varchar(200) NOT NULL DEFAULT ''", repaired)
         self._add_column(cursor, table, "custom_brief", "text NOT NULL DEFAULT ''", repaired)
         self._add_column(cursor, table, "promotional_price", "varchar(80) NOT NULL DEFAULT ''", repaired)
@@ -170,6 +171,7 @@ class Command(BaseCommand):
         repaired = []
         table = "stories_storyimagevariant"
         self._add_column(cursor, table, "status", "varchar(20) NOT NULL DEFAULT 'ready'", repaired)
+        self._add_column(cursor, table, "target_format", "varchar(20) NOT NULL DEFAULT 'feed'", repaired)
         self._add_column(cursor, table, "image_prompt_snapshot", "text NOT NULL DEFAULT ''", repaired)
         self._add_column(cursor, table, "provider_response", "text NOT NULL DEFAULT ''", repaired)
         self._add_column(cursor, table, "asset", "varchar(100) NOT NULL DEFAULT ''", repaired)
@@ -227,6 +229,15 @@ class Command(BaseCommand):
                 '''
             )
             repaired.append(f"backfilled {table_name}.content_type from legacy story_type")
+
+        cursor.execute(
+            f'''UPDATE "{table_name}" SET target_formats = CASE
+                WHEN target_formats IS NULL OR target_formats = '' OR target_formats = '[]'
+                THEN '["' || target_format || '"]'
+                ELSE target_formats
+            END'''
+        )
+        repaired.append(f"backfilled {table_name}.target_formats from target_format")
 
         brief_parts = []
         if "equipment_configuration" in columns:
