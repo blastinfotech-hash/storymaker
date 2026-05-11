@@ -2,15 +2,14 @@ from __future__ import annotations
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Prefetch, Q
+from django.db.models import Q
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
 from django.utils import timezone
 
 from stories.forms import BulkProjectBatchForm, StoryProjectForm
 from stories.models import BulkProjectBatch, StoryConcept, StoryImageVariant, StoryProject
-from stories.tasks import queue_bulk_batch, queue_project_generation
+from stories.tasks import queue_bulk_batch, queue_concept_images, queue_project_generation
 
 
 @login_required
@@ -68,7 +67,7 @@ def project_detail(request: HttpRequest, slug: str) -> HttpResponse:
                 form.save()
                 messages.success(request, "Projeto atualizado.")
                 return redirect("project_detail", slug=project.slug)
-        elif action == "generate":
+        elif action == "generate_concept":
             form = StoryProjectForm(request.POST, instance=project)
             if form.is_valid():
                 form.save()
@@ -76,14 +75,35 @@ def project_detail(request: HttpRequest, slug: str) -> HttpResponse:
                 project.error_message = ""
                 project.save(update_fields=["status", "error_message", "updated_at"])
                 try:
-                    queue_project_generation.delay(project.pk)
+                    queue_project_generation.delay(project.pk, False)
                 except Exception as exc:  # noqa: BLE001
                     project.status = StoryProject.Status.FAILED
                     project.error_message = f"Fila assíncrona indisponível: {exc}"
                     project.save(update_fields=["status", "error_message", "updated_at"])
                     messages.error(request, project.error_message)
                     return redirect("project_detail", slug=project.slug)
-                messages.success(request, "Geração colocada na fila. A página vai atualizar automaticamente.")
+                messages.success(request, "Geração de conceito colocada na fila. A página vai atualizar automaticamente.")
+                return redirect("project_detail", slug=project.slug)
+        elif action == "generate_images":
+            form = StoryProjectForm(request.POST, instance=project)
+            if form.is_valid():
+                form.save()
+                concept = project.current_concept
+                if concept is None:
+                    messages.error(request, "Gere um conceito antes de solicitar as imagens.")
+                    return redirect("project_detail", slug=project.slug)
+                project.status = StoryProject.Status.IMAGE_GENERATING
+                project.error_message = ""
+                project.save(update_fields=["status", "error_message", "updated_at"])
+                try:
+                    queue_concept_images.delay(concept.pk)
+                except Exception as exc:  # noqa: BLE001
+                    project.status = StoryProject.Status.FAILED
+                    project.error_message = f"Fila assíncrona indisponível: {exc}"
+                    project.save(update_fields=["status", "error_message", "updated_at"])
+                    messages.error(request, project.error_message)
+                    return redirect("project_detail", slug=project.slug)
+                messages.success(request, "Geração de imagens colocada na fila. A página vai atualizar automaticamente.")
                 return redirect("project_detail", slug=project.slug)
         else:
             return _handle_variant_action(request, project)
@@ -106,6 +126,10 @@ def project_detail(request: HttpRequest, slug: str) -> HttpResponse:
 
 
 def _handle_variant_action(request: HttpRequest, project: StoryProject) -> HttpResponse:
+    action = request.POST.get("action")
+    if action != "select_variant":
+        messages.error(request, "Ação da variante inválida.")
+        return redirect("project_detail", slug=project.slug)
     variant_id = request.POST.get("variant_id")
     variant = get_object_or_404(StoryImageVariant, pk=variant_id, concept__project=project)
     variant.concept.variants.update(is_selected=False)

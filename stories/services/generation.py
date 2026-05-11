@@ -80,11 +80,11 @@ BETA_GUIDE = BrandSystem(
 
         Categoria visual: varejo de informática, marketplace premium popular, promoção corporativa, tecnologia comercial, comunicação de feed social e loja física regional. A estética deve ser limpa, objetiva, comercial, moderna, funcional e altamente escaneável.
 
-        Estrutura fixa: LOGO, HEADLINE PROMOCIONAL, SUBTÍTULO OU BENEFÍCIO, PREÇO PRINCIPAL, PRODUTO EM DESTAQUE, ESPECIFICAÇÕES e RODAPÉ INSTITUCIONAL. O formato oficial é vertical 4:5, otimizado para Instagram Feed, Facebook Feed, Marketplace e Ads Mobile.
+        Estrutura fixa: HEADLINE PROMOCIONAL, SUBTÍTULO OU BENEFÍCIO, PREÇO PRINCIPAL, PRODUTO EM DESTAQUE, ESPECIFICAÇÕES e RODAPÉ INSTITUCIONAL. O formato oficial é vertical 4:5, otimizado para Instagram Feed, Facebook Feed, Marketplace e Ads Mobile.
 
         Hierarquia de atenção: PROMOÇÃO, PREÇO, PRODUTO, BENEFÍCIO, ESPECIFICAÇÕES e MARCA. Usar escala tipográfica, contraste, peso visual, centralização, cor e espaçamento para guiar a leitura.
 
-        Composição: blocos grandes e modulares. Topo com logo e headline promocional. Subhead com benefício principal e especificação resumida. Área central com produto, preço e elementos de destaque. Base com especificações, CTA institucional e reforço comercial.
+        Composição: blocos grandes e modulares. Topo com headline promocional. Subhead com benefício principal e especificação resumida. Área central com produto, preço e elementos de destaque. Base com especificações, CTA institucional e reforço comercial.
 
         Fundo: nunca competir com o produto. Usar loja de informática, showroom, escritório, ambiente corporativo ou espaço comercial com gaussian blur forte, baixa nitidez, opacidade reduzida, baixo contraste e aparência clean. Paleta de fundo: branco acinzentado, off-white, cinza claro e cinza frio.
 
@@ -102,12 +102,12 @@ BETA_GUIDE = BrandSystem(
 
         Proibições: fundos poluídos, neon exagerado, RGB gamer, sombras pesadas, glow excessivo, gradientes agressivos, tipografia fina, excesso de elementos, excesso de cores, desalinhamentos, textos longos e ícones desnecessários.
 
-        Fórmula ideal: topo com logo e headline; subhead com benefício ou especificações rápidas; centro com produto e preço; base com resumo e CTA institucional. DNA consolidado: varejo tecnológico, promoção direta, conversão rápida, estética limpa, mobile-first, produto protagonista, preço dominante, azul corporativo forte, tipografia bold, fundo desfocado clean, composição modular, contraste extremo e alta legibilidade.
+        Fórmula ideal: topo com headline; subhead com benefício ou especificações rápidas; centro com produto e preço; base com resumo e CTA institucional. DNA consolidado: varejo tecnológico, promoção direta, conversão rápida, estética limpa, mobile-first, produto protagonista, preço dominante, azul corporativo forte, tipografia bold, fundo desfocado clean, composição modular, contraste extremo e alta legibilidade.
         """
     ).strip(),
     master_prompt=(
         "Create a clean Brazilian computer store promotional ad for Beta Informatica, corporate blue visual identity, vertical social ad, "
-        "logo on top, aggressive promotional headline, dominant price box, centered realistic product, clean blurred store or office background, bold sans-serif typography and extremely clear commercial hierarchy."
+        "aggressive promotional headline, dominant price box, centered realistic product, clean blurred store or office background, bold sans-serif typography and extremely clear commercial hierarchy, without logos or brand marks in the image."
     ),
 )
 
@@ -125,7 +125,7 @@ def generate_story_concept(project: StoryProject) -> StoryConcept:
     provider_response = ""
     payload = fallback_story_copy(project, brand, latest)
 
-    if settings.OPENAI_API_KEY:
+    if project.content_type != StoryProject.ContentType.PROMOTIONAL and settings.OPENAI_API_KEY:
         try:
             client = OpenAI(api_key=settings.OPENAI_API_KEY)
             response = client.responses.create(model=settings.OPENAI_TEXT_MODEL, input=prompt_snapshot)
@@ -133,6 +133,8 @@ def generate_story_concept(project: StoryProject) -> StoryConcept:
             payload = parse_story_response(response.output_text, project, brand)
         except Exception as exc:  # noqa: BLE001
             provider_response = f"OpenAI text generation failed: {exc}"
+    elif project.content_type == StoryProject.ContentType.PROMOTIONAL:
+        provider_response = "Promotional concept grounded from project inputs to preserve the exact product, specs and price."
 
     project.concepts.update(is_current=False)
     concept = StoryConcept.objects.create(
@@ -188,6 +190,9 @@ def generate_story_image_variant(concept: StoryConcept, variant_number: int) -> 
 
 
 def build_story_prompt(project: StoryProject, brand: BrandSystem, latest: StoryConcept | None) -> str:
+    if project.content_type == StoryProject.ContentType.PROMOTIONAL:
+        return build_promotional_concept_prompt(project, brand, latest)
+
     article_context = ""
     if project.article_id:
         article_context = dedent(
@@ -245,6 +250,40 @@ def build_story_prompt(project: StoryProject, brand: BrandSystem, latest: StoryC
 
 def build_image_prompt(concept: StoryConcept, brand: BrandSystem, variant_number: int) -> str:
     project = concept.project
+    if project.content_type == StoryProject.ContentType.PROMOTIONAL:
+        facts = promotional_source_facts(project)
+        product_category = infer_product_category(facts)
+        return dedent(
+            f"""
+            {brand.master_prompt}
+
+            Brand mode: {project.get_brand_mode_display()}
+            Layout summary: {brand.layout_summary}
+            Output format: {project.get_target_format_display()}
+            Variation number: {variant_number} of {project.requested_image_count}
+            Product category lock: {product_category}
+
+            Locked commercial facts from the approved concept and project:
+            - Headline exact: {concept.headline}
+            - Subheadline exact: {concept.subheadline}
+            - Body exact: {concept.body_text}
+            - Price exact: {concept.price_text}
+            - CTA exact: {concept.call_to_action}
+            - Product/topic exact: {project.topic}
+            - Source brief exact: {facts}
+            - Approved visual direction: {concept.visual_direction}
+
+            Hard rules:
+            - Render the exact product category described in the locked facts. Never swap desktop for notebook, notebook for desktop, or invent another item.
+            - Never invent, replace or alter brands, models, specs, capacities, product family or price.
+            - Use only the exact approved text and price above. Do not paraphrase, shorten, expand or translate them.
+            - The final image must contain the approved promotional text itself, with correct spelling and numbers.
+            - Never add logos, brand marks, fake seals, fake UI labels or extra callouts.
+            - Keep the product large, centered and commercially realistic.
+            - Use a clean blurred environment and preserve legibility for headline, specs and price.
+            """
+        ).strip()
+
     return dedent(
         f"""
         {brand.master_prompt}
@@ -284,6 +323,9 @@ def parse_story_response(response_text: str, project: StoryProject, brand: Brand
 
 
 def fallback_story_copy(project: StoryProject, brand: BrandSystem, latest: StoryConcept | None) -> dict:
+    if project.content_type == StoryProject.ContentType.PROMOTIONAL:
+        return build_promotional_payload(project, brand, latest)
+
     topic = project.topic or (project.article.title if project.article_id else project.title)
     body = strip_tags(project.article.summary) if project.article_id else project.custom_brief
     body = body or "Destaque rapido com foco em conversao, clareza comercial e leitura imediata."
@@ -308,6 +350,109 @@ def fallback_story_copy(project: StoryProject, brand: BrandSystem, latest: Story
     }
 
 
+def build_promotional_concept_prompt(project: StoryProject, brand: BrandSystem, latest: StoryConcept | None) -> str:
+    facts = promotional_source_facts(project)
+    previous_context = ""
+    if latest:
+        previous_context = dedent(
+            f"""
+            Previous approved promotional concept:
+            - Headline: {latest.headline}
+            - Subheadline: {latest.subheadline}
+            - Body: {latest.body_text}
+            - Price: {latest.price_text}
+            - CTA: {latest.call_to_action}
+            - Visual direction: {latest.visual_direction}
+            """
+        ).strip()
+
+    return dedent(
+        f"""
+        Promotional concept generation for {brand.company_name}.
+
+        Brand DNA:
+        {brand.manual}
+
+        Locked source facts. Never alter, swap or invent product family, specs or price:
+        {facts}
+
+        Topic exact: {project.topic}
+        Promotional price exact: {project.promotional_price}
+        CTA exact: {project.call_to_action}
+        Adjustment request: {project.adjustment_request}
+
+        {previous_context}
+
+        Important: preserve the exact commercial facts from the source. You may only reorganize wording for hierarchy and readability. No substitutions.
+
+        Return plain text in this exact format:
+        HEADLINE: ...
+        SUBHEADLINE: ...
+        BODY: ...
+        PRICE: ...
+        CTA: ...
+        VISUAL_DIRECTION: ...
+        """
+    ).strip()
+
+
+def promotional_source_facts(project: StoryProject) -> str:
+    parts = [part.strip() for part in [project.topic, project.custom_brief, project.promotional_price, project.call_to_action] if part and part.strip()]
+    return "\n".join(parts)
+
+
+def build_promotional_payload(project: StoryProject, brand: BrandSystem, latest: StoryConcept | None) -> dict:
+    lines = [line.strip() for line in re.split(r"\n+", project.custom_brief or "") if line.strip()]
+    headline_source = project.topic or project.title
+    headline = normalize_short_line(headline_source, max_words=7, max_chars=70).upper()
+    subheadline = normalize_short_line(lines[0] if lines else headline_source, max_words=12, max_chars=110)
+    spec_lines = [line for line in lines if extract_price_text(line) == ""]
+    body = " | ".join(spec_lines[:4]).strip() or subheadline
+    price = extract_price_text(project.promotional_price) or extract_price_text(project.custom_brief) or "Consulte o valor"
+    cta = (project.call_to_action or "Fale conosco agora").strip()
+    refinement = f" Ajuste solicitado: {project.adjustment_request.strip()}" if project.adjustment_request.strip() else ""
+    visual_direction = (
+        f"Seguir o DNA {brand.label} com {brand.layout_summary}. Produto protagonista, preço dominante, hierarquia comercial limpa e área segura para texto legível gerado na própria arte."
+        f" Categoria do produto travada em {infer_product_category(promotional_source_facts(project))}."
+        f"{refinement}"
+    )
+    return {
+        "headline": headline,
+        "subheadline": subheadline,
+        "body_text": body[:220],
+        "price_text": price[:80],
+        "call_to_action": cta[:140],
+        "visual_direction": visual_direction,
+    }
+
+
+def normalize_short_line(text: str, max_words: int, max_chars: int) -> str:
+    words = [word for word in re.split(r"\s+", text or "") if word]
+    cleaned = " ".join(words[:max_words]).strip()
+    return cleaned[:max_chars].strip(" -|,.;:")
+
+
+def extract_price_text(text: str) -> str:
+    if not text:
+        return ""
+    price_lines = extract_price_lines(text)
+    if price_lines:
+        return " | ".join(price_lines)
+    match = re.search(r"R\$\s*[\d\.,]+(?:[^\n]*)", text, flags=re.IGNORECASE)
+    return match.group(0).strip() if match else ""
+
+
+def infer_product_category(text: str) -> str:
+    lowered = (text or "").lower()
+    if any(token in lowered for token in ["notebook", "laptop", "ideapad", "vivobook"]):
+        return "notebook"
+    if any(token in lowered for token in ["pc", "desktop", "gabinete", "rtx", "rx ", "geforce", "placa de video"]):
+        return "desktop computer"
+    if any(token in lowered for token in ["monitor"]):
+        return "monitor"
+    return "computer product"
+
+
 def build_svg_placeholder(concept: StoryConcept, brand: BrandSystem, variant_number: int) -> bytes:
     width, height = canvas_for_format(concept.project.target_format)
     headline = escape_xml(concept.headline[:52])
@@ -315,7 +460,6 @@ def build_svg_placeholder(concept: StoryConcept, brand: BrandSystem, variant_num
     body = escape_xml(concept.body_text[:180])
     price = escape_xml(concept.price_text or "Consulte")
     cta = escape_xml(concept.call_to_action or "Fale com a loja")
-    brand_label = brand.company_name.upper()
     svg = f"""
     <svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
       <rect width="{width}" height="{height}" fill="#F4F5F7"/>
@@ -333,7 +477,6 @@ def build_svg_placeholder(concept: StoryConcept, brand: BrandSystem, variant_num
       <text x="{int(width * 0.63)}" y="{int(height * 0.63)}" fill="{brand.primary}" font-size="{int(width * 0.025)}" font-family="Arial">Preco</text>
       <text x="{int(width * 0.63)}" y="{int(height * 0.68)}" fill="{brand.primary}" font-size="{int(width * 0.05)}" font-weight="700" font-family="Arial">{price}</text>
       <text x="{int(width * 0.08)}" y="{int(height * 0.94)}" fill="{brand.light}" font-size="{int(width * 0.024)}" font-family="Arial">{cta}</text>
-      <text x="{int(width * 0.92)}" y="{int(height * 0.94)}" text-anchor="end" fill="{brand.light}" font-size="{int(width * 0.026)}" font-family="Arial">{brand_label}</text>
     </svg>
     """
     return dedent(svg).strip().encode("utf-8")
@@ -388,10 +531,10 @@ def split_bulk_promotions(raw_input: str) -> list[dict]:
         if not lines:
             continue
         title = lines[0]
-        price_match = re.search(r"R\$\s*[\d\.,]+", block, flags=re.IGNORECASE)
-        price = price_match.group(0).upper() if price_match else ""
-        description_lines = [line for line in lines[1:] if line.upper() != price.upper()]
-        description = " ".join(description_lines).strip()
+        price_lines = extract_price_lines(block)
+        price = " | ".join(price_lines)
+        description_lines = [line for line in lines[1:] if line not in price_lines]
+        description = "\n".join(description_lines).strip()
         promotions.append({"title": title[:200], "description": description, "price": price})
     return promotions
 
@@ -410,6 +553,18 @@ def split_by_price_blocks(raw_input: str) -> list[str]:
     if current:
         blocks.append("\n".join(current))
     return blocks
+
+
+def extract_price_lines(text: str) -> list[str]:
+    price_lines = []
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        upper = line.upper()
+        if "R$" in upper or upper.startswith("OU ") or upper.startswith("EM ") or "JUROS" in upper or "A VISTA" in upper:
+            price_lines.append(line)
+    return price_lines
 
 
 def escape_xml(text: str) -> str:

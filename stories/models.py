@@ -1,5 +1,6 @@
 from django.db import models
 from django.utils.text import slugify
+from uuid import uuid4
 
 from core.models import TimeStampedModel
 from news.models import NewsArticle
@@ -90,10 +91,9 @@ class StoryProject(TimeStampedModel):
         if self.brand_mode == self.BrandMode.BETA:
             self.target_format = self.Format.FEED
         self.requested_image_count = 2
-        super().save(*args, **kwargs)
         if not self.slug:
-            self.slug = f"{slugify(self.title) or 'story-project'}-{self.pk}"
-            super().save(update_fields=["slug"])
+            self.slug = f"{slugify(self.title) or 'story-project'}-{uuid4().hex[:8]}"
+        super().save(*args, **kwargs)
 
     @property
     def current_concept(self):

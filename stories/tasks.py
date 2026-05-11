@@ -6,7 +6,7 @@ from stories.services.generation import generate_story_concept, generate_story_i
 
 
 @shared_task
-def queue_project_generation(project_id: int) -> None:
+def queue_project_generation(project_id: int, auto_images: bool = True) -> None:
     project = StoryProject.objects.get(pk=project_id)
     try:
         project.status = StoryProject.Status.CONCEPT_GENERATING
@@ -14,6 +14,23 @@ def queue_project_generation(project_id: int) -> None:
         project.save(update_fields=["status", "error_message", "updated_at"])
 
         concept = generate_story_concept(project)
+        if not auto_images:
+            project.status = StoryProject.Status.CONCEPT_READY
+            project.save(update_fields=["status", "updated_at"])
+            return
+
+        queue_concept_images.delay(concept.pk)
+    except Exception as exc:  # noqa: BLE001
+        project.status = StoryProject.Status.FAILED
+        project.error_message = str(exc)
+        project.save(update_fields=["status", "error_message", "updated_at"])
+
+
+@shared_task
+def queue_concept_images(concept_id: int) -> None:
+    concept = StoryConcept.objects.select_related("project").get(pk=concept_id)
+    project = concept.project
+    try:
         project.status = StoryProject.Status.IMAGE_GENERATING
         project.save(update_fields=["status", "updated_at"])
 
