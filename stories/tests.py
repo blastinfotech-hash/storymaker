@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.db import connection
 from django.test import TestCase
 from django.urls import reverse
 
@@ -87,6 +88,25 @@ class ProjectWorkflowViewTests(TestCase):
         )
 
         response = self.client.post(reverse("home"), {"action": "delete_project", "project_id": project.pk})
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(StoryProject.objects.filter(pk=project.pk).exists())
+
+    def test_project_delete_does_not_crash_with_legacy_storyversion_table(self):
+        project = StoryProject.objects.create(
+            title="Excluir legado",
+            brand_mode=StoryProject.BrandMode.BETA,
+            content_type=StoryProject.ContentType.PROMOTIONAL,
+            topic="PC TESTE",
+        )
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                'CREATE TABLE IF NOT EXISTS "stories_storyversion" (id integer primary key autoincrement, project_id bigint, generated_image varchar(255) DEFAULT \'\')'
+            )
+            cursor.execute('INSERT INTO "stories_storyversion" (project_id, generated_image) VALUES (%s, %s)', [project.pk, ""])
+
+        response = self.client.post(reverse("project_detail", args=[project.slug]), {"action": "delete_project"})
 
         self.assertEqual(response.status_code, 302)
         self.assertFalse(StoryProject.objects.filter(pk=project.pk).exists())

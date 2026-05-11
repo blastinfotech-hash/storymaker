@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import logging
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.files.storage import default_storage
+from django.db import connection, transaction
 from django.db.models import Q
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -11,6 +15,8 @@ from django.utils import timezone
 from stories.forms import BulkProjectBatchForm, StoryProjectForm
 from stories.models import BulkProjectBatch, StoryConcept, StoryImageVariant, StoryProject
 from stories.tasks import queue_bulk_batch, queue_concept_images, queue_project_generation
+
+logger = logging.getLogger(__name__)
 
 
 @login_required
@@ -109,8 +115,10 @@ def project_detail(request: HttpRequest, slug: str) -> HttpResponse:
             messages.success(request, "Geração de imagens colocada na fila.")
             return redirect("project_detail", slug=project.slug)
         elif action == "delete_project":
-            project.delete()
-            messages.success(request, "Projeto excluído.")
+            if _delete_project(project):
+                messages.success(request, "Projeto excluído.")
+            else:
+                messages.error(request, "Não foi possível excluir o projeto agora.")
             return redirect("home")
         else:
             return _handle_variant_action(request, project)
@@ -175,8 +183,10 @@ def _handle_home_post(request: HttpRequest) -> HttpResponse:
         return render(request, "stories/home.html", _build_home_context(query="", batch_form=form))
     if action == "delete_project":
         project = get_object_or_404(StoryProject, pk=request.POST.get("project_id"))
-        project.delete()
-        messages.success(request, "Projeto excluído.")
+        if _delete_project(project):
+            messages.success(request, "Projeto excluído.")
+        else:
+            messages.error(request, "Não foi possível excluir o projeto agora.")
         return redirect("home")
     return redirect("home")
 
@@ -211,3 +221,43 @@ def _build_project_detail_context(project: StoryProject, form: StoryProjectForm)
         "variants": variants,
         "has_processing": project.is_processing,
     }
+
+
+def _delete_project(project: StoryProject) -> bool:
+    try:
+        with transaction.atomic():
+            _delete_project_assets(project)
+            _delete_legacy_story_versions(project.pk)
+            project.delete()
+        return True
+    except Exception:
+        logger.exception("Failed to delete project %s", project.pk)
+        return False
+
+
+def _delete_project_assets(project: StoryProject) -> None:
+    for variant in StoryImageVariant.objects.filter(concept__project=project).exclude(asset=""):
+        if variant.asset:
+            variant.asset.delete(save=False)
+
+
+def _delete_legacy_story_versions(project_id: int) -> None:
+    with connection.cursor() as cursor:
+        tables = set(connection.introspection.table_names(cursor))
+        if "stories_storyversion" not in tables:
+            return
+
+        columns = {column.name for column in connection.introspection.get_table_description(cursor, "stories_storyversion")}
+        file_column = None
+        if "generated_image" in columns:
+            file_column = "generated_image"
+        elif "asset" in columns:
+            file_column = "asset"
+
+        if file_column:
+            cursor.execute(f'SELECT "{file_column}" FROM "stories_storyversion" WHERE project_id = %s', [project_id])
+            for (file_name,) in cursor.fetchall():
+                if file_name:
+                    default_storage.delete(file_name)
+
+        cursor.execute('DELETE FROM "stories_storyversion" WHERE project_id = %s', [project_id])
