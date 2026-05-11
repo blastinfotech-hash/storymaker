@@ -1,0 +1,9 @@
+<div class="panel" style="padding:18px;">
+  <div style="display:flex; justify-content:space-between; gap:8px; align-items:center;">
+    <strong>{{ batch.name }}</strong>
+    <span class="badge {% if batch.brand_mode == 'blast' %}blast{% else %}beta{% endif %}">{{ batch.get_brand_mode_display }}</span>
+  </div>
+  <div class="muted" style="margin-top:8px;">{{ batch.get_status_display }}</div>
+  <div class="muted" style="margin-top:8px;">{{ batch.completed_projects }}/{{ batch.total_projects }} concluidos</div>
+  {% if batch.error_message %}<div style="margin-top:10px; color:#d93025;">{{ batch.error_message }}</div>{% endif %}
+</div>

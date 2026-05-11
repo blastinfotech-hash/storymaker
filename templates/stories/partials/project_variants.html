@@ -1,0 +1,33 @@
+{% if concept %}
+<section class="grid" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); margin-top:20px;">
+  {% for variant in variants %}
+    <article class="panel">
+      <div style="display:flex; justify-content:space-between; gap:8px; align-items:center;">
+        <strong>Variante {{ variant.variant_number }}</strong>
+        <span class="badge status">{{ variant.get_status_display }}</span>
+      </div>
+      {% if variant.asset %}
+        <img class="preview" style="margin-top:14px;" src="{{ variant.asset.url }}" alt="Variante {{ variant.variant_number }}">
+      {% else %}
+        <div class="panel" style="margin-top:14px; min-height:220px; display:flex; align-items:center; justify-content:center;">Aguardando imagem</div>
+      {% endif %}
+      <div style="margin-top:14px; display:flex; gap:12px; flex-wrap:wrap;">
+        {% if variant.asset %}<a class="btn secondary" href="{{ variant.asset.url }}" target="_blank">Baixar</a>{% endif %}
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="select_variant">
+          <input type="hidden" name="variant_id" value="{{ variant.id }}">
+          <button class="btn {% if variant.is_selected %}blast{% else %}secondary{% endif %}" type="submit">{% if variant.is_selected %}Selecionada{% else %}Selecionar{% endif %}</button>
+        </form>
+      </div>
+      <div class="muted" style="margin:14px 0 8px;">Prompt real enviado para imagem</div>
+      <pre>{{ variant.image_prompt_snapshot }}</pre>
+      {% if variant.provider_response %}
+        <div class="muted" style="margin:12px 0 8px;">Resposta da variante</div>
+        <pre>{{ variant.provider_response }}</pre>
+      {% endif %}
+      {% if variant.error_message %}<div style="margin-top:10px; color:#d93025;">{{ variant.error_message }}</div>{% endif %}
+    </article>
+  {% endfor %}
+</section>
+{% endif %}

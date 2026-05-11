@@ -1,0 +1,25 @@
+{% if concept %}
+<section class="panel" style="margin-top:20px;">
+  <h2 style="margin-top:0;">Conceito atual</h2>
+  <div class="grid" style="grid-template-columns: 1fr 1fr;">
+    <div>
+      <p><strong>Headline:</strong> {{ concept.headline }}</p>
+      <p><strong>Subheadline:</strong> {{ concept.subheadline }}</p>
+      <p><strong>Body:</strong> {{ concept.body_text }}</p>
+      <p><strong>Preço:</strong> {{ concept.price_text }}</p>
+      <p><strong>CTA:</strong> {{ concept.call_to_action }}</p>
+      <p><strong>Direção visual:</strong> {{ concept.visual_direction }}</p>
+    </div>
+    <div>
+      <div class="muted" style="margin-bottom:8px;">Prompt real enviado para conceito</div>
+      <pre>{{ concept.prompt_snapshot }}</pre>
+      {% if concept.provider_response %}
+        <div class="muted" style="margin:12px 0 8px;">Resposta bruta do provider</div>
+        <pre>{{ concept.provider_response }}</pre>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% else %}
+<section class="panel" style="margin-top:20px;">Nenhum conceito gerado ainda. Use o botão <strong>Gerar conceito</strong> acima.</section>
+{% endif %}

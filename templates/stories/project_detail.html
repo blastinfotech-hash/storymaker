@@ -10,7 +10,7 @@
         <h1 style="margin:0 0 8px;">{{ project.title }}</h1>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <span class="badge {% if project.brand_mode == 'blast' %}blast{% else %}beta{% endif %}">{{ project.get_brand_mode_display }}</span>
-          <span class="badge status">{{ project.get_status_display }}</span>
+          <span class="badge status" id="project-status-badge">{{ project.get_status_display }}</span>
           <span class="badge status">{{ project.get_content_type_display }}</span>
         </div>
       </div>
@@ -34,104 +34,66 @@
       </div>
     </form>
 
-    <div style="display:flex; gap:12px; flex-wrap:wrap; margin-top:14px;">
-      <form method="post" style="margin:0;">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="generate_concept">
-        <button class="btn {% if project.brand_mode == 'blast' %}blast{% else %}beta{% endif %}" type="submit">
-          {% if concept %}Gerar novo conceito{% else %}Gerar conceito{% endif %}
-        </button>
-      </form>
-
-      {% if concept %}
-        <form method="post" style="margin:0;">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="generate_images">
-          <button class="btn secondary" type="submit">Aprovar conceito e gerar 2 imagens</button>
-        </form>
-      {% endif %}
+    <div id="project-actions-panel">
+      {% include "stories/partials/project_actions.html" %}
     </div>
-
-    {% if project.error_message %}
-      <div style="margin-top:14px; color:#d93025;">{{ project.error_message }}</div>
-    {% endif %}
   </section>
 
-  <section class="panel">
-    <h2 style="margin-top:0;">Status operacional</h2>
-    <ul>
-      <li>Projeto: {{ project.get_status_display }}</li>
-      <li>Variantes solicitadas por rodada: {{ project.requested_image_count }}</li>
-      <li>Última atualização: {{ project.updated_at }}</li>
-    </ul>
-    <p class="muted">Fluxo individual: 1) gerar conceito, 2) revisar, 3) aprovar conceito para gerar as 2 imagens. Em massa o fluxo continua automático.</p>
-    <p class="muted">O campo <strong>adjustment request</strong> é o único usado para orientar a próxima geração de conceito e imagens.</p>
-  </section>
+  <div id="project-status-panel">
+    {% include "stories/partials/project_status.html" %}
+  </div>
 </div>
 
-{% if concept %}
-<section class="panel" style="margin-top:20px;">
-  <h2 style="margin-top:0;">Conceito atual</h2>
-  <div class="grid" style="grid-template-columns: 1fr 1fr;">
-    <div>
-      <p><strong>Headline:</strong> {{ concept.headline }}</p>
-      <p><strong>Subheadline:</strong> {{ concept.subheadline }}</p>
-      <p><strong>Body:</strong> {{ concept.body_text }}</p>
-      <p><strong>Preço:</strong> {{ concept.price_text }}</p>
-      <p><strong>CTA:</strong> {{ concept.call_to_action }}</p>
-      <p><strong>Direção visual:</strong> {{ concept.visual_direction }}</p>
-    </div>
-    <div>
-      <div class="muted" style="margin-bottom:8px;">Prompt real enviado para conceito</div>
-      <pre>{{ concept.prompt_snapshot }}</pre>
-      {% if concept.provider_response %}
-        <div class="muted" style="margin:12px 0 8px;">Resposta bruta do provider</div>
-        <pre>{{ concept.provider_response }}</pre>
-      {% endif %}
-    </div>
-  </div>
-</section>
+<div id="project-concept-panel">
+  {% include "stories/partials/project_concept.html" %}
+</div>
 
-<section class="grid" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); margin-top:20px;">
-  {% for variant in variants %}
-    <article class="panel">
-      <div style="display:flex; justify-content:space-between; gap:8px; align-items:center;">
-        <strong>Variante {{ variant.variant_number }}</strong>
-        <span class="badge status">{{ variant.get_status_display }}</span>
-      </div>
-      {% if variant.asset %}
-        <img class="preview" style="margin-top:14px;" src="{{ variant.asset.url }}" alt="Variante {{ variant.variant_number }}">
-      {% else %}
-        <div class="panel" style="margin-top:14px; min-height:220px; display:flex; align-items:center; justify-content:center;">Aguardando imagem</div>
-      {% endif %}
-      <div style="margin-top:14px; display:flex; gap:12px; flex-wrap:wrap;">
-        {% if variant.asset %}<a class="btn secondary" href="{{ variant.asset.url }}" target="_blank">Baixar</a>{% endif %}
-        <form method="post">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="select_variant">
-          <input type="hidden" name="variant_id" value="{{ variant.id }}">
-          <button class="btn {% if variant.is_selected %}blast{% else %}secondary{% endif %}" type="submit">{% if variant.is_selected %}Selecionada{% else %}Selecionar{% endif %}</button>
-        </form>
-      </div>
-      <div class="muted" style="margin:14px 0 8px;">Prompt real enviado para imagem</div>
-      <pre>{{ variant.image_prompt_snapshot }}</pre>
-      {% if variant.provider_response %}
-        <div class="muted" style="margin:12px 0 8px;">Resposta da variante</div>
-        <pre>{{ variant.provider_response }}</pre>
-      {% endif %}
-      {% if variant.error_message %}<div style="margin-top:10px; color:#d93025;">{{ variant.error_message }}</div>{% endif %}
-    </article>
-  {% endfor %}
-</section>
-{% else %}
-<section class="panel" style="margin-top:20px;">Nenhum conceito gerado ainda. Use o botão <strong>Gerar conceito</strong> acima.</section>
-{% endif %}
+<div id="project-variants-panel">
+  {% include "stories/partials/project_variants.html" %}
+</div>
 {% endblock %}
 
 {% block scripts %}
 {% if has_processing %}
 <script>
-  setTimeout(function () { window.location.reload(); }, 5000);
+  (function () {
+    const pollUrl = "{% url 'project_detail_status' slug=project.slug %}";
+    const statusBadge = document.getElementById("project-status-badge");
+    const actionsPanel = document.getElementById("project-actions-panel");
+    const statusPanel = document.getElementById("project-status-panel");
+    const conceptPanel = document.getElementById("project-concept-panel");
+    const variantsPanel = document.getElementById("project-variants-panel");
+    let active = true;
+
+    function replaceIfChanged(node, html) {
+      if (!node || node.innerHTML === html) return;
+      node.innerHTML = html;
+    }
+
+    function poll() {
+      if (!active) return;
+      fetch(pollUrl, {headers: {"X-Requested-With": "XMLHttpRequest"}})
+        .then((response) => response.json())
+        .then((payload) => {
+          if (statusBadge) {
+            statusBadge.textContent = payload.status_display;
+          }
+          replaceIfChanged(actionsPanel, payload.actions_html);
+          replaceIfChanged(statusPanel, payload.status_html);
+          replaceIfChanged(conceptPanel, payload.concept_html);
+          replaceIfChanged(variantsPanel, payload.variants_html);
+          active = payload.has_processing;
+          if (active) {
+            window.setTimeout(poll, 4000);
+          }
+        })
+        .catch(() => {
+          window.setTimeout(poll, 8000);
+        });
+    }
+
+    window.setTimeout(poll, 4000);
+  })();
 </script>
 {% endif %}
 {% endblock %}

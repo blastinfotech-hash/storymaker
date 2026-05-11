@@ -1,0 +1,27 @@
+<div style="display:flex; gap:12px; flex-wrap:wrap; margin-top:14px;">
+  <form method="post" style="margin:0;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="generate_concept">
+    <button class="btn {% if project.brand_mode == 'blast' %}blast{% else %}beta{% endif %}" type="submit">
+      {% if concept %}Gerar novo conceito{% else %}Gerar conceito{% endif %}
+    </button>
+  </form>
+
+  {% if concept %}
+    <form method="post" style="margin:0;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="generate_images">
+      <button class="btn secondary" type="submit">Aprovar conceito e gerar 2 imagens</button>
+    </form>
+  {% endif %}
+
+  <form method="post" style="margin:0;" onsubmit="return confirm('Excluir este projeto?');">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="delete_project">
+    <button class="btn secondary" type="submit">Excluir projeto</button>
+  </form>
+</div>
+
+{% if project.error_message %}
+  <div style="margin-top:14px; color:#d93025;">{{ project.error_message }}</div>
+{% endif %}

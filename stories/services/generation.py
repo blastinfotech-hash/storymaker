@@ -14,6 +14,12 @@ from openai import OpenAI
 from stories.models import StoryConcept, StoryImageVariant, StoryProject
 
 
+PRICE_CONTEXT_PATTERN = re.compile(
+    r"(R\$\s*[\d\.,]+|\b\d{1,2}x\b|\bx\s*de\b|\bsem juros\b|\bparcelad[oa]\b|\bà vista\b|\ba vista\b)",
+    flags=re.IGNORECASE,
+)
+
+
 BLAST_VISUAL_IDENTITY_PROMPT = dedent(
     """
     Manual Oficial de Identidade Visual para Geração de Imagens IA - BLAST INFO & TECH.
@@ -540,16 +546,21 @@ def split_bulk_promotions(raw_input: str) -> list[dict]:
 
 
 def split_by_price_blocks(raw_input: str) -> list[str]:
-    lines = [line for line in raw_input.splitlines() if line.strip()]
+    lines = [line.strip() for line in raw_input.splitlines() if line.strip()]
     if not lines:
         return []
+
     blocks = []
     current = []
-    for line in lines:
-        current.append(line)
-        if re.search(r"R\$\s*[\d\.,]+", line, flags=re.IGNORECASE):
+    saw_price = False
+    for index, line in enumerate(lines):
+        if current and saw_price and is_new_promotion_start(lines, index):
             blocks.append("\n".join(current))
             current = []
+            saw_price = False
+        current.append(line)
+        if is_price_line(line):
+            saw_price = True
     if current:
         blocks.append("\n".join(current))
     return blocks
@@ -561,10 +572,36 @@ def extract_price_lines(text: str) -> list[str]:
         line = raw_line.strip()
         if not line:
             continue
-        upper = line.upper()
-        if "R$" in upper or upper.startswith("OU ") or upper.startswith("EM ") or "JUROS" in upper or "A VISTA" in upper:
+        if is_price_line(line):
             price_lines.append(line)
     return price_lines
+
+
+def is_price_line(line: str) -> bool:
+    if not line:
+        return False
+    normalized = " ".join(line.split())
+    if not PRICE_CONTEXT_PATTERN.search(normalized):
+        return False
+    return bool(re.search(r"\d", normalized))
+
+
+def is_new_promotion_start(lines: list[str], index: int) -> bool:
+    line = lines[index].strip()
+    if not line or is_price_line(line):
+        return False
+
+    previous_line = lines[index - 1].strip() if index > 0 else ""
+    if not previous_line or not is_price_line(previous_line):
+        return False
+
+    if len(line) < 8 or not re.search(r"[A-Za-zÀ-ÿ]", line):
+        return False
+
+    if line.lower().startswith(("ou ", "em ", "pix", "boleto", "cartao")):
+        return False
+
+    return True
 
 
 def escape_xml(text: str) -> str:

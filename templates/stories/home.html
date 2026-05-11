@@ -13,14 +13,14 @@
       </div>
       <div class="panel" style="min-width:220px; background:rgba(255,255,255,0.08); border-color:rgba(255,255,255,0.15); color:white;">
         <div class="muted" style="color:#d1d5db;">Projetos cadastrados</div>
-        <div style="font-size:46px; font-weight:700; margin-top:8px;">{{ project_count }}</div>
+        <div style="font-size:46px; font-weight:700; margin-top:8px;" id="project-count-value">{{ project_count }}</div>
       </div>
     </div>
   </section>
   <section class="panel">
     <h2 style="margin-top:0;">Criação em massa</h2>
     <p class="muted">Cole várias promoções. O sistema recorta, cria projetos promocionais e dispara conceito + 2 imagens sem confirmação manual.</p>
-    <form method="post" class="grid">
+    <form method="post" class="grid" id="bulk-create-form">
       {% csrf_token %}
       <input type="hidden" name="action" value="bulk_create">
       <div>
@@ -52,16 +52,10 @@
 {% if batches %}
 <section class="panel" style="margin-top:20px;">
   <h2 style="margin-top:0;">Lotes recentes</h2>
-  <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
+  <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));" id="batch-cards">
     {% for batch in batches %}
-      <div class="panel" style="padding:18px;">
-        <div style="display:flex; justify-content:space-between; gap:8px; align-items:center;">
-          <strong>{{ batch.name }}</strong>
-          <span class="badge {% if batch.brand_mode == 'blast' %}blast{% else %}beta{% endif %}">{{ batch.get_brand_mode_display }}</span>
-        </div>
-        <div class="muted" style="margin-top:8px;">{{ batch.get_status_display }}</div>
-        <div class="muted" style="margin-top:8px;">{{ batch.completed_projects }}/{{ batch.total_projects }} concluidos</div>
-        {% if batch.error_message %}<div style="margin-top:10px; color:#d93025;">{{ batch.error_message }}</div>{% endif %}
+      <div id="batch-card-{{ batch.pk }}">
+        {% include "stories/partials/batch_card.html" %}
       </div>
     {% endfor %}
   </div>
@@ -75,38 +69,11 @@
       <div class="muted">Cada card mostra o status atual e as variantes mais recentes.</div>
     </div>
   </div>
-  <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
+  <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));" id="project-cards">
     {% for project in projects %}
-      <article class="panel" style="padding:18px;">
-        <div style="display:flex; justify-content:space-between; gap:8px; align-items:flex-start;">
-          <div>
-            <strong>{{ project.title }}</strong><br>
-            <span class="muted">{{ project.get_content_type_display }} · {{ project.get_target_format_display }}</span>
-          </div>
-          <span class="badge {% if project.brand_mode == 'blast' %}blast{% else %}beta{% endif %}">{{ project.get_brand_mode_display }}</span>
-        </div>
-        <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
-          <span class="badge status">{{ project.get_status_display }}</span>
-          {% if project.article %}<span class="badge status">Noticia vinculada</span>{% endif %}
-        </div>
-        <div class="grid" style="grid-template-columns: 1fr 1fr; margin-top:14px;">
-          {% for variant in project.latest_ready_variants %}
-            <a href="{% url 'project_detail' slug=project.slug %}">
-              <img class="preview" src="{{ variant.asset.url }}" alt="Variante {{ variant.variant_number }}">
-            </a>
-          {% empty %}
-            <div class="panel" style="min-height:180px; display:flex; align-items:center; justify-content:center; text-align:center;">Aguardando imagens</div>
-          {% endfor %}
-          {% if project.latest_ready_variants|length == 1 %}
-            <div class="panel" style="min-height:180px; display:flex; align-items:center; justify-content:center; text-align:center;">Variante 2 em fila</div>
-          {% endif %}
-          {% if not project.latest_ready_variants %}
-            <div class="panel" style="min-height:180px; display:flex; align-items:center; justify-content:center; text-align:center;">Conceito / imagens em processamento</div>
-          {% endif %}
-        </div>
-        <div class="muted" style="margin-top:12px; min-height:42px;">{{ project.topic|default:project.custom_brief|truncatechars:110 }}</div>
-        <div style="margin-top:14px;"><a class="btn secondary" href="{% url 'project_detail' slug=project.slug %}">Abrir projeto</a></div>
-      </article>
+      <div id="project-card-{{ project.pk }}">
+        {% include "stories/partials/project_card.html" %}
+      </div>
     {% empty %}
       <div class="panel">Nenhum projeto encontrado.</div>
     {% endfor %}
@@ -115,9 +82,121 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+  (function () {
+    const form = document.getElementById("bulk-create-form");
+    if (!form) return;
+
+    const brandField = form.querySelector('[name="brand_mode"]');
+    const rawInputField = form.querySelector('[name="raw_input"]');
+    const storageKey = "storymaker.bulkCreateDraft";
+
+    function saveDraft() {
+      if (!rawInputField) return;
+      const payload = {
+        brand_mode: brandField ? brandField.value : "",
+        raw_input: rawInputField.value || "",
+      };
+      localStorage.setItem(storageKey, JSON.stringify(payload));
+    }
+
+    function loadDraft() {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) return;
+      try {
+        const draft = JSON.parse(raw);
+        if (brandField && !brandField.value && draft.brand_mode) {
+          brandField.value = draft.brand_mode;
+        }
+        if (rawInputField && !rawInputField.value && draft.raw_input) {
+          rawInputField.value = draft.raw_input;
+        }
+      } catch (error) {
+        localStorage.removeItem(storageKey);
+      }
+    }
+
+    function clearDraft() {
+      localStorage.removeItem(storageKey);
+    }
+
+    function hasPendingBulkDraft() {
+      return Boolean(rawInputField && rawInputField.value.trim());
+    }
+
+    loadDraft();
+
+    if (brandField) {
+      brandField.addEventListener("change", saveDraft);
+    }
+    if (rawInputField) {
+      rawInputField.addEventListener("input", saveDraft);
+    }
+    form.addEventListener("submit", clearDraft);
+
+    window.storymakerHasPendingBulkDraft = hasPendingBulkDraft;
+  })();
+</script>
 {% if has_processing %}
 <script>
-  setTimeout(function () { window.location.reload(); }, 5000);
+  (function () {
+    const pollUrl = "{% url 'home_status' %}?q={{ search_query|urlencode }}";
+    const projectCards = document.getElementById("project-cards");
+    const batchCards = document.getElementById("batch-cards");
+    const projectCount = document.getElementById("project-count-value");
+
+    function syncCollection(container, prefix, items) {
+      if (!container) return;
+      const incomingIds = new Set(items.map((item) => `${prefix}${item.id}`));
+      Array.from(container.children).forEach((node) => {
+        if (!incomingIds.has(node.id)) {
+          node.remove();
+        }
+      });
+
+      const fragment = document.createDocumentFragment();
+      items.forEach((item) => {
+        const elementId = `${prefix}${item.id}`;
+        let node = document.getElementById(elementId);
+        if (!node) {
+          node = document.createElement("div");
+          node.id = elementId;
+          node.innerHTML = item.html;
+        } else if (node.innerHTML !== item.html) {
+          node.innerHTML = item.html;
+        }
+        fragment.appendChild(node);
+      });
+      container.appendChild(fragment);
+    }
+
+    function scheduleRefresh() {
+      setTimeout(function () {
+        const hasPendingBulkDraft = typeof window.storymakerHasPendingBulkDraft === "function" && window.storymakerHasPendingBulkDraft();
+        if (hasPendingBulkDraft) {
+          scheduleRefresh();
+          return;
+        }
+        fetch(pollUrl, {headers: {"X-Requested-With": "XMLHttpRequest"}})
+          .then((response) => response.json())
+          .then((payload) => {
+            if (projectCount) {
+              projectCount.textContent = payload.project_count;
+            }
+            syncCollection(projectCards, "project-card-", payload.project_cards);
+            syncCollection(batchCards, "batch-card-", payload.batch_cards);
+            if (payload.has_processing) {
+              scheduleRefresh();
+            }
+          })
+          .catch(() => {
+            scheduleRefresh();
+          });
+      }, 12000);
+    }
+
+    scheduleRefresh();
+  })();
 </script>
 {% endif %}
 {% endblock %}
