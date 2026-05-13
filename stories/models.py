@@ -59,7 +59,6 @@ class StoryProject(TimeStampedModel):
     class Format(models.TextChoices):
         STORY = "story", "Story 1080x1920"
         FEED = "feed", "Feed 1080x1350"
-        LANDSCAPE = "landscape", "1920x1080"
         SQUARE = "square", "Quadrado 1080x1080"
 
     class BrandMode(models.TextChoices):

@@ -18,6 +18,7 @@ PRICE_CONTEXT_PATTERN = re.compile(
     r"(R\$\s*[\d\.,]+|\b\d{1,2}x\b|\bx\s*de\b|\bsem juros\b|\bparcelad[oa]\b|\bà vista\b|\ba vista\b)",
     flags=re.IGNORECASE,
 )
+ILLUSTRATIVE_DISCLAIMER = "Imagem meramente ilustrativa"
 
 
 BLAST_VISUAL_IDENTITY_PROMPT = dedent(
@@ -284,6 +285,7 @@ def build_image_prompt(concept: StoryConcept, brand: BrandSystem, target_format:
             - Body exact: {concept.body_text}
             - Price exact: {concept.price_text}
             - CTA exact: {concept.call_to_action}
+            - Mandatory disclaimer exact: {ILLUSTRATIVE_DISCLAIMER}
             - Product/topic exact: {project.topic}
             - Source brief exact: {facts}
             - Approved visual direction: {concept.visual_direction}
@@ -293,6 +295,7 @@ def build_image_prompt(concept: StoryConcept, brand: BrandSystem, target_format:
             - Never invent, replace or alter brands, models, specs, capacities, product family or price.
             - Use only the exact approved text and price above. Do not paraphrase, shorten, expand or translate them.
             - The final image must contain the approved promotional text itself, with correct spelling and numbers.
+            - The final image must visibly contain the exact disclaimer text: {ILLUSTRATIVE_DISCLAIMER}.
             - Never add logos, brand marks, fake seals, fake UI labels or extra callouts.
             - Keep the product large, centered and commercially realistic.
             - Use a clean blurred environment and preserve legibility for headline, specs and price.
@@ -423,6 +426,8 @@ def build_promotional_payload(project: StoryProject, brand: BrandSystem, latest:
     subheadline = normalize_short_line(lines[0] if lines else headline_source, max_words=12, max_chars=110)
     spec_lines = [line for line in lines if extract_price_text(line) == ""]
     body = " | ".join(spec_lines[:4]).strip() or subheadline
+    if ILLUSTRATIVE_DISCLAIMER.lower() not in body.lower():
+        body = f"{body} | {ILLUSTRATIVE_DISCLAIMER}" if body else ILLUSTRATIVE_DISCLAIMER
     price = extract_price_text(project.promotional_price) or extract_price_text(project.custom_brief) or "Consulte o valor"
     cta = (project.call_to_action or "Fale conosco agora").strip()
     refinement = f" Ajuste solicitado: {project.adjustment_request.strip()}" if project.adjustment_request.strip() else ""
@@ -500,8 +505,6 @@ def build_svg_placeholder(concept: StoryConcept, brand: BrandSystem, target_form
 def canvas_for_format(target_format: str) -> tuple[int, int]:
     if target_format == StoryProject.Format.FEED:
         return 1080, 1350
-    if target_format == StoryProject.Format.LANDSCAPE:
-        return 1920, 1080
     if target_format == StoryProject.Format.SQUARE:
         return 1080, 1080
     return 1080, 1920
@@ -510,8 +513,6 @@ def canvas_for_format(target_format: str) -> tuple[int, int]:
 def image_size_for_format(target_format: str) -> str:
     if target_format == StoryProject.Format.FEED:
         return "1024x1536"
-    if target_format == StoryProject.Format.LANDSCAPE:
-        return "1536x1024"
     if target_format == StoryProject.Format.SQUARE:
         return "1024x1024"
     return "1024x1792"

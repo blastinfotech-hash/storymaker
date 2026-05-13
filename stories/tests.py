@@ -81,7 +81,7 @@ class ProjectWorkflowViewTests(TestCase):
                 "title": project.title,
                 "brand_mode": project.brand_mode,
                 "content_type": project.content_type,
-                "target_formats": [StoryProject.Format.FEED, StoryProject.Format.LANDSCAPE],
+                "target_formats": [StoryProject.Format.FEED, StoryProject.Format.STORY],
                 "article": "",
                 "topic": project.topic,
                 "custom_brief": project.custom_brief,
@@ -94,7 +94,7 @@ class ProjectWorkflowViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         project.refresh_from_db()
         self.assertEqual(project.status, StoryProject.Status.QUEUED)
-        self.assertEqual(project.selected_target_formats, [StoryProject.Format.FEED, StoryProject.Format.LANDSCAPE])
+        self.assertEqual(project.selected_target_formats, [StoryProject.Format.FEED, StoryProject.Format.STORY])
         mocked_delay.assert_called_once_with(project.pk, False)
 
     def test_home_can_delete_project(self):
@@ -123,7 +123,7 @@ class ProjectFormatSelectionTests(TestCase):
                 "title": "Formatos beta",
                 "brand_mode": StoryProject.BrandMode.BETA,
                 "content_type": StoryProject.ContentType.PROMOTIONAL,
-                "target_formats": [StoryProject.Format.FEED, StoryProject.Format.LANDSCAPE],
+                "target_formats": [StoryProject.Format.FEED, StoryProject.Format.STORY],
                 "topic": "PC TESTE",
                 "custom_brief": "PC TESTE",
                 "promotional_price": "R$ 1000",
@@ -136,7 +136,7 @@ class ProjectFormatSelectionTests(TestCase):
         self.assertTrue(form.is_valid(), form.errors)
         project = form.save()
 
-        self.assertEqual(project.selected_target_formats, [StoryProject.Format.FEED, StoryProject.Format.LANDSCAPE])
+        self.assertEqual(project.selected_target_formats, [StoryProject.Format.FEED, StoryProject.Format.STORY])
         self.assertEqual(project.target_format, StoryProject.Format.FEED)
 
     @patch("stories.tasks.generate_image_variant.delay")
@@ -145,7 +145,7 @@ class ProjectFormatSelectionTests(TestCase):
             title="Multiformato",
             brand_mode=StoryProject.BrandMode.BETA,
             content_type=StoryProject.ContentType.PROMOTIONAL,
-            target_formats=[StoryProject.Format.FEED, StoryProject.Format.LANDSCAPE],
+            target_formats=[StoryProject.Format.FEED, StoryProject.Format.STORY],
             target_format=StoryProject.Format.FEED,
             topic="PC TESTE",
             custom_brief="PC TESTE",
@@ -161,14 +161,14 @@ class ProjectFormatSelectionTests(TestCase):
             {
                 (StoryProject.Format.FEED, 1),
                 (StoryProject.Format.FEED, 2),
-                (StoryProject.Format.LANDSCAPE, 1),
-                (StoryProject.Format.LANDSCAPE, 2),
+                (StoryProject.Format.STORY, 1),
+                (StoryProject.Format.STORY, 2),
             },
         )
         mocked_delay.assert_any_call(concept.pk, StoryProject.Format.FEED, 1)
         mocked_delay.assert_any_call(concept.pk, StoryProject.Format.FEED, 2)
-        mocked_delay.assert_any_call(concept.pk, StoryProject.Format.LANDSCAPE, 1)
-        mocked_delay.assert_any_call(concept.pk, StoryProject.Format.LANDSCAPE, 2)
+        mocked_delay.assert_any_call(concept.pk, StoryProject.Format.STORY, 1)
+        mocked_delay.assert_any_call(concept.pk, StoryProject.Format.STORY, 2)
 
     def test_project_delete_does_not_crash_with_legacy_storyversion_table(self):
         project = StoryProject.objects.create(
