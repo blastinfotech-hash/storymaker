@@ -274,6 +274,16 @@ def build_story_prompt(project: StoryProject, brand: BrandSystem, latest: StoryC
         - short paragraph with practical explanation of value or specs
         - price sentence
         - CTA sentence mentioning exactly the selected brand name
+        Base example structure:
+        💻 <HEADLINE>
+
+        <benefit hook>
+
+        <practical explanation of specs and value>
+
+        Por apenas <PRICE>.
+
+        👉 Quer garantir o seu? <CTA> com a {brand.company_name}.
         Never confuse the brand names. If the project is Blast, mention only {brand.company_name}. If the project is Beta, mention only {brand.company_name}.
         """
     ).strip()
@@ -448,6 +458,16 @@ def build_promotional_concept_prompt(project: StoryProject, brand: BrandSystem, 
         - short paragraph with the main specs or value explanation
         - price sentence
         - CTA sentence mentioning exactly the selected brand name
+        Base example structure:
+        💻 <HEADLINE>
+
+        <benefit hook>
+
+        <practical explanation of specs and value>
+
+        Por apenas <PRICE>.
+
+        👉 Quer garantir o seu? <CTA> com a {brand.company_name}.
         Never confuse the brand names. Mention only {brand.company_name}.
         """
     ).strip()
