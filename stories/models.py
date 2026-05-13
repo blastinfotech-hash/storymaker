@@ -12,8 +12,9 @@ LEGACY_FORMAT_MAP = {
 
 
 def story_asset_upload_to(instance: "StoryImageVariant", filename: str) -> str:
-    slug = instance.concept.project.slug or slugify(instance.concept.project.title) or f"project-{instance.concept.project_id}"
-    return f"stories/{slug}/concept-{instance.concept.version_number}/variant-{instance.variant_number}-{filename}"
+    _, dot, extension = filename.rpartition(".")
+    suffix = f".{extension.lower()}" if dot and extension else ""
+    return f"stories/p{instance.concept.project_id}/c{instance.concept.version_number}/{instance.target_format}-v{instance.variant_number}{suffix}"
 
 
 class BulkProjectBatch(TimeStampedModel):
@@ -167,6 +168,7 @@ class StoryConcept(TimeStampedModel):
     body_text = models.TextField(blank=True)
     price_text = models.CharField(max_length=80, blank=True)
     call_to_action = models.CharField(max_length=140, blank=True)
+    social_caption = models.TextField(blank=True)
     visual_direction = models.TextField(blank=True)
     prompt_snapshot = models.TextField(blank=True)
     provider_response = models.TextField(blank=True)
@@ -193,7 +195,7 @@ class StoryImageVariant(TimeStampedModel):
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.QUEUED)
     image_prompt_snapshot = models.TextField(blank=True)
     provider_response = models.TextField(blank=True)
-    asset = models.FileField(upload_to=story_asset_upload_to, blank=True)
+    asset = models.FileField(upload_to=story_asset_upload_to, blank=True, max_length=255)
     asset_mime_type = models.CharField(max_length=60, blank=True)
     error_message = models.TextField(blank=True)
     is_selected = models.BooleanField(default=False)

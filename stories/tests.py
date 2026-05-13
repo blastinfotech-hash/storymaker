@@ -6,7 +6,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from stories.forms import StoryProjectForm
-from stories.services.generation import split_bulk_promotions
+from stories.services.generation import generate_story_concept, split_bulk_promotions
 from stories.models import StoryConcept, StoryImageVariant, StoryProject
 from stories.tasks import queue_concept_images
 
@@ -188,3 +188,49 @@ class ProjectFormatSelectionTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertFalse(StoryProject.objects.filter(pk=project.pk).exists())
+
+    def test_story_asset_path_is_short(self):
+        project = StoryProject.objects.create(
+            title="Notebook Asus Vivobook X1504VA Intel Core i5 13a Geração Memória 12GB SSD 256GB 15.6 Full HD",
+            brand_mode=StoryProject.BrandMode.BETA,
+            content_type=StoryProject.ContentType.PROMOTIONAL,
+            topic="Notebook teste",
+        )
+        concept = StoryConcept.objects.create(project=project, version_number=1, status=StoryConcept.Status.READY, is_current=True)
+        variant = StoryImageVariant.objects.create(concept=concept, target_format=StoryProject.Format.STORY, variant_number=2)
+
+        generated_path = variant.asset.field.generate_filename(variant, "story-variant-2_Uqiex0D.png")
+
+        self.assertLessEqual(len(generated_path), 255)
+
+    def test_promotional_social_caption_uses_beta_brand_only(self):
+        project = StoryProject.objects.create(
+            title="Legenda Beta",
+            brand_mode=StoryProject.BrandMode.BETA,
+            content_type=StoryProject.ContentType.PROMOTIONAL,
+            topic="NOTEBOOK ASUS VIVOBOOK GO",
+            custom_brief="Intel Core i3 | 8GB de memória | SSD 256GB",
+            promotional_price="R$ 2.699 à vista ou 10x sem juros",
+            call_to_action="Chama no WhatsApp",
+        )
+
+        concept = generate_story_concept(project)
+
+        self.assertIn("Beta Informática", concept.social_caption)
+        self.assertNotIn("BLAST INFO & TECH", concept.social_caption)
+
+    def test_promotional_social_caption_uses_blast_brand_only(self):
+        project = StoryProject.objects.create(
+            title="Legenda Blast",
+            brand_mode=StoryProject.BrandMode.BLAST,
+            content_type=StoryProject.ContentType.PROMOTIONAL,
+            topic="PC WORKSTATION",
+            custom_brief="Ryzen 7 | 32GB RAM | SSD 1TB",
+            promotional_price="R$ 5.999 à vista",
+            call_to_action="Fale com nosso time",
+        )
+
+        concept = generate_story_concept(project)
+
+        self.assertIn("BLAST INFO & TECH", concept.social_caption)
+        self.assertNotIn("Beta Informática", concept.social_caption)
