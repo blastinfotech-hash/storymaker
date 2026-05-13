@@ -19,6 +19,10 @@ PRICE_CONTEXT_PATTERN = re.compile(
     flags=re.IGNORECASE,
 )
 ILLUSTRATIVE_DISCLAIMER = "Imagem meramente ilustrativa"
+DEAD_MARGIN_RULE = (
+    "Reserve a dead margin equal to 5% of the total image height at the top and 5% at the bottom. "
+    "These zones may contain only non-informative visual elements. Never place text, prices, CTA, specs, disclaimers or any other readable information inside those top and bottom dead margins."
+)
 
 
 BLAST_VISUAL_IDENTITY_PROMPT = dedent(
@@ -299,6 +303,7 @@ def build_image_prompt(concept: StoryConcept, brand: BrandSystem, target_format:
             - Never add logos, brand marks, fake seals, fake UI labels or extra callouts.
             - Keep the product large, centered and commercially realistic.
             - Use a clean blurred environment and preserve legibility for headline, specs and price.
+            - {DEAD_MARGIN_RULE}
             """
         ).strip()
 
@@ -318,6 +323,7 @@ def build_image_prompt(concept: StoryConcept, brand: BrandSystem, target_format:
         Variation number: {variant_number} of {project.requested_image_count}
 
         Create a distinct variation while keeping the same campaign concept, same product positioning and same brand identity.
+        Hard rule: {DEAD_MARGIN_RULE}
         """
     ).strip()
 

@@ -228,11 +228,18 @@ class Command(BaseCommand):
             )
             repaired.append(f"backfilled {table_name}.content_type from legacy story_type")
 
+        cursor.execute(
+            f'''UPDATE "{table_name}" SET target_format = 'story' WHERE target_format = 'landscape' '''
+        )
+        repaired.append(f"normalized {table_name}.target_format from legacy landscape to story")
+
         if "target_formats" in columns:
             cursor.execute(
                 f'''UPDATE "{table_name}" SET target_formats = CASE
                     WHEN target_formats IS NULL OR target_formats = '' OR target_formats = '[]'
                     THEN '["' || target_format || '"]'
+                    WHEN target_formats LIKE '%landscape%'
+                    THEN REPLACE(target_formats, 'landscape', 'story')
                     ELSE target_formats
                 END'''
             )

@@ -6,6 +6,11 @@ from core.models import TimeStampedModel
 from news.models import NewsArticle
 
 
+LEGACY_FORMAT_MAP = {
+    "landscape": "story",
+}
+
+
 def story_asset_upload_to(instance: "StoryImageVariant", filename: str) -> str:
     slug = instance.concept.project.slug or slugify(instance.concept.project.title) or f"project-{instance.concept.project_id}"
     return f"stories/{slug}/concept-{instance.concept.version_number}/variant-{instance.variant_number}-{filename}"
@@ -116,11 +121,13 @@ class StoryProject(TimeStampedModel):
         stored = self.target_formats or []
         if isinstance(stored, str):
             stored = [stored]
-        values = [value for value in stored if value in allowed]
+        values = [LEGACY_FORMAT_MAP.get(value, value) for value in stored]
+        values = [value for value in values if value in allowed]
         if values:
             return values
-        if self.target_format in allowed:
-            return [self.target_format]
+        normalized_target_format = LEGACY_FORMAT_MAP.get(self.target_format, self.target_format)
+        if normalized_target_format in allowed:
+            return [normalized_target_format]
         return []
 
     @property
