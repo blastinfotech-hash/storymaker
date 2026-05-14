@@ -19,10 +19,6 @@ PRICE_CONTEXT_PATTERN = re.compile(
     flags=re.IGNORECASE,
 )
 ILLUSTRATIVE_DISCLAIMER = "Imagem meramente ilustrativa"
-DEAD_MARGIN_RULE = (
-    "Reserve a dead margin equal to 5% of the total image height at the top and 5% at the bottom. "
-    "These zones may contain only non-informative visual elements. Never place text, prices, CTA, specs, disclaimers or any other readable information inside those top and bottom dead margins."
-)
 
 
 BLAST_VISUAL_IDENTITY_PROMPT = dedent(
@@ -228,7 +224,6 @@ def build_story_prompt(project: StoryProject, brand: BrandSystem, latest: StoryC
             f"""
             Previous headline: {latest.headline}
             Previous body: {latest.body_text}
-            Previous social caption: {latest.social_caption}
             Previous visual direction: {latest.visual_direction}
             """
         ).strip()
@@ -247,7 +242,6 @@ def build_story_prompt(project: StoryProject, brand: BrandSystem, latest: StoryC
         Brand mode: {project.brand_mode}
         Content type: {project.content_type}
         Target format: {project.target_format}
-        Brand name to use inside the social caption: {brand.company_name}
         Topic: {project.topic}
         Custom brief: {project.custom_brief}
         Promotional price: {project.promotional_price}
@@ -264,27 +258,7 @@ def build_story_prompt(project: StoryProject, brand: BrandSystem, latest: StoryC
         BODY: ...
         PRICE: ...
         CTA: ...
-        SOCIAL_CAPTION: ...
         VISUAL_DIRECTION: ...
-
-        The SOCIAL_CAPTION must be ready to publish on social media in Brazilian Portuguese.
-        It must follow this structure closely:
-        - line 1: emoji plus product or campaign headline
-        - short paragraph with benefit or context
-        - short paragraph with practical explanation of value or specs
-        - price sentence
-        - CTA sentence mentioning exactly the selected brand name
-        Base example structure:
-        💻 <HEADLINE>
-
-        <benefit hook>
-
-        <practical explanation of specs and value>
-
-        Por apenas <PRICE>.
-
-        👉 Quer garantir o seu? <CTA> com a {brand.company_name}.
-        Never confuse the brand names. If the project is Blast, mention only {brand.company_name}. If the project is Beta, mention only {brand.company_name}.
         """
     ).strip()
 
@@ -325,7 +299,6 @@ def build_image_prompt(concept: StoryConcept, brand: BrandSystem, target_format:
             - Never add logos, brand marks, fake seals, fake UI labels or extra callouts.
             - Keep the product large, centered and commercially realistic.
             - Use a clean blurred environment and preserve legibility for headline, specs and price.
-            - {DEAD_MARGIN_RULE}
             """
         ).strip()
 
@@ -345,7 +318,6 @@ def build_image_prompt(concept: StoryConcept, brand: BrandSystem, target_format:
         Variation number: {variant_number} of {project.requested_image_count}
 
         Create a distinct variation while keeping the same campaign concept, same product positioning and same brand identity.
-        Hard rule: {DEAD_MARGIN_RULE}
         """
     ).strip()
 
@@ -364,7 +336,6 @@ def parse_story_response(response_text: str, project: StoryProject, brand: Brand
         "body_text": values.get("BODY", generated["body_text"]),
         "price_text": values.get("PRICE", generated["price_text"]),
         "call_to_action": values.get("CTA", generated["call_to_action"]),
-        "social_caption": values.get("SOCIAL_CAPTION", generated["social_caption"]),
         "visual_direction": values.get("VISUAL_DIRECTION", generated["visual_direction"]),
     }
 
@@ -393,14 +364,6 @@ def fallback_story_copy(project: StoryProject, brand: BrandSystem, latest: Story
         "body_text": body,
         "price_text": project.promotional_price or "Consulte o melhor preco",
         "call_to_action": project.call_to_action or "Chame agora e garanta sua oferta",
-        "social_caption": build_social_caption(
-            brand_name=brand.company_name,
-            headline=headline,
-            subheadline=subheadline,
-            body_text=body,
-            price_text=project.promotional_price or "Consulte o melhor preco",
-            call_to_action=project.call_to_action or "Chame agora e garanta sua oferta",
-        ),
         "visual_direction": visual_direction,
     }
 
@@ -417,7 +380,6 @@ def build_promotional_concept_prompt(project: StoryProject, brand: BrandSystem, 
             - Body: {latest.body_text}
             - Price: {latest.price_text}
             - CTA: {latest.call_to_action}
-            - Social caption: {latest.social_caption}
             - Visual direction: {latest.visual_direction}
             """
         ).strip()
@@ -432,7 +394,6 @@ def build_promotional_concept_prompt(project: StoryProject, brand: BrandSystem, 
         Locked source facts. Never alter, swap or invent product family, specs or price:
         {facts}
 
-        Brand name to use inside the social caption: {brand.company_name}
         Topic exact: {project.topic}
         Promotional price exact: {project.promotional_price}
         CTA exact: {project.call_to_action}
@@ -448,27 +409,7 @@ def build_promotional_concept_prompt(project: StoryProject, brand: BrandSystem, 
         BODY: ...
         PRICE: ...
         CTA: ...
-        SOCIAL_CAPTION: ...
         VISUAL_DIRECTION: ...
-
-        The SOCIAL_CAPTION must be ready to publish on social media in Brazilian Portuguese.
-        It must follow this structure closely:
-        - line 1: emoji plus product headline
-        - short paragraph with benefit or hook
-        - short paragraph with the main specs or value explanation
-        - price sentence
-        - CTA sentence mentioning exactly the selected brand name
-        Base example structure:
-        💻 <HEADLINE>
-
-        <benefit hook>
-
-        <practical explanation of specs and value>
-
-        Por apenas <PRICE>.
-
-        👉 Quer garantir o seu? <CTA> com a {brand.company_name}.
-        Never confuse the brand names. Mention only {brand.company_name}.
         """
     ).strip()
 
@@ -501,37 +442,8 @@ def build_promotional_payload(project: StoryProject, brand: BrandSystem, latest:
         "body_text": body[:220],
         "price_text": price[:80],
         "call_to_action": cta[:140],
-        "social_caption": build_social_caption(
-            brand_name=brand.company_name,
-            headline=headline,
-            subheadline=subheadline,
-            body_text=body,
-            price_text=price,
-            call_to_action=cta,
-        ),
         "visual_direction": visual_direction,
     }
-
-
-def build_social_caption(
-    brand_name: str,
-    headline: str,
-    subheadline: str,
-    body_text: str,
-    price_text: str,
-    call_to_action: str,
-) -> str:
-    body_sentence = " ".join(part.strip() for part in body_text.split("|") if part.strip())
-    if body_sentence:
-        body_sentence = f"{body_sentence}."
-    cta_sentence = call_to_action.strip().rstrip(".")
-    return (
-        f"💻 {headline}\n\n"
-        f"{subheadline}\n\n"
-        f"{body_sentence}\n\n"
-        f"Por {price_text}.\n\n"
-        f"👉 Quer garantir o seu? {cta_sentence} com a {brand_name}."
-    ).strip()
 
 
 def normalize_short_line(text: str, max_words: int, max_chars: int) -> str:

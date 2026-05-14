@@ -6,15 +6,9 @@ from core.models import TimeStampedModel
 from news.models import NewsArticle
 
 
-LEGACY_FORMAT_MAP = {
-    "landscape": "story",
-}
-
-
 def story_asset_upload_to(instance: "StoryImageVariant", filename: str) -> str:
-    _, dot, extension = filename.rpartition(".")
-    suffix = f".{extension.lower()}" if dot and extension else ""
-    return f"stories/p{instance.concept.project_id}/c{instance.concept.version_number}/{instance.target_format}-v{instance.variant_number}{suffix}"
+    slug = instance.concept.project.slug or slugify(instance.concept.project.title) or f"project-{instance.concept.project_id}"
+    return f"stories/{slug}/concept-{instance.concept.version_number}/variant-{instance.variant_number}-{filename}"
 
 
 class BulkProjectBatch(TimeStampedModel):
@@ -122,13 +116,11 @@ class StoryProject(TimeStampedModel):
         stored = self.target_formats or []
         if isinstance(stored, str):
             stored = [stored]
-        values = [LEGACY_FORMAT_MAP.get(value, value) for value in stored]
-        values = [value for value in values if value in allowed]
+        values = [value for value in stored if value in allowed]
         if values:
             return values
-        normalized_target_format = LEGACY_FORMAT_MAP.get(self.target_format, self.target_format)
-        if normalized_target_format in allowed:
-            return [normalized_target_format]
+        if self.target_format in allowed:
+            return [self.target_format]
         return []
 
     @property
@@ -168,7 +160,6 @@ class StoryConcept(TimeStampedModel):
     body_text = models.TextField(blank=True)
     price_text = models.CharField(max_length=80, blank=True)
     call_to_action = models.CharField(max_length=140, blank=True)
-    social_caption = models.TextField(blank=True)
     visual_direction = models.TextField(blank=True)
     prompt_snapshot = models.TextField(blank=True)
     provider_response = models.TextField(blank=True)
@@ -195,7 +186,7 @@ class StoryImageVariant(TimeStampedModel):
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.QUEUED)
     image_prompt_snapshot = models.TextField(blank=True)
     provider_response = models.TextField(blank=True)
-    asset = models.FileField(upload_to=story_asset_upload_to, blank=True, max_length=255)
+    asset = models.FileField(upload_to=story_asset_upload_to, blank=True)
     asset_mime_type = models.CharField(max_length=60, blank=True)
     error_message = models.TextField(blank=True)
     is_selected = models.BooleanField(default=False)
