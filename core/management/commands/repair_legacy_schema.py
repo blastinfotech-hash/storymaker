@@ -162,6 +162,7 @@ class Command(BaseCommand):
     def _repair_story_concept(self, cursor) -> list[str]:
         repaired = []
         table = "stories_storyconcept"
+        columns = self._columns(cursor, table)
         self._add_column(cursor, table, "status", "varchar(20) NOT NULL DEFAULT 'ready'", repaired)
         self._add_column(cursor, table, "instruction_snapshot", "text NOT NULL DEFAULT ''", repaired)
         self._add_column(cursor, table, "headline", "varchar(180) NOT NULL DEFAULT ''", repaired)
@@ -175,6 +176,10 @@ class Command(BaseCommand):
         self._add_column(cursor, table, "is_current", "boolean NOT NULL DEFAULT true", repaired)
         self._add_column(cursor, table, "parent_id", "bigint NULL", repaired)
         self._alter_column_to_text(cursor, table, "price_text", repaired)
+        # Drop legacy social_caption column if it still exists; the current model no longer uses it.
+        if "social_caption" in columns:
+            cursor.execute(f'ALTER TABLE "{table}" DROP COLUMN social_caption')
+            repaired.append(f"dropped legacy column {table}.social_caption")
         return repaired
 
     def _repair_story_image_variant(self, cursor) -> list[str]:
