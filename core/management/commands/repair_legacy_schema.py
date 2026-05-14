@@ -64,6 +64,15 @@ class Command(BaseCommand):
         cursor.execute(f'ALTER TABLE "{table_name}" ADD COLUMN "{column_name}" {sql_type}')
         repaired.append(f"added column {table_name}.{column_name}")
 
+    def _alter_column_to_text(self, cursor, table_name: str, column_name: str, repaired: list[str]):
+        columns = self._columns(cursor, table_name)
+        if column_name not in columns:
+            return
+        if connection.vendor != "postgresql":
+            return
+        cursor.execute(f'ALTER TABLE "{table_name}" ALTER COLUMN "{column_name}" TYPE text')
+        repaired.append(f"altered {table_name}.{column_name} to text")
+
     def _repair_news_source(self, cursor) -> list[str]:
         repaired = []
         table = "news_newssource"
@@ -120,13 +129,14 @@ class Command(BaseCommand):
         self._add_column(cursor, table, "target_format", "varchar(20) NOT NULL DEFAULT 'story'", repaired)
         self._add_column(cursor, table, "topic", "varchar(200) NOT NULL DEFAULT ''", repaired)
         self._add_column(cursor, table, "custom_brief", "text NOT NULL DEFAULT ''", repaired)
-        self._add_column(cursor, table, "promotional_price", "varchar(80) NOT NULL DEFAULT ''", repaired)
+        self._add_column(cursor, table, "promotional_price", "text NOT NULL DEFAULT ''", repaired)
         self._add_column(cursor, table, "call_to_action", "varchar(140) NOT NULL DEFAULT ''", repaired)
         self._add_column(cursor, table, "adjustment_request", "text NOT NULL DEFAULT ''", repaired)
         self._add_column(cursor, table, "article_id", "bigint NULL", repaired)
         self._add_column(cursor, table, "requested_image_count", "smallint NOT NULL DEFAULT 2", repaired)
         self._add_column(cursor, table, "error_message", "text NOT NULL DEFAULT ''", repaired)
         self._add_column(cursor, table, "bulk_batch_id", "bigint NULL", repaired)
+        self._alter_column_to_text(cursor, table, "promotional_price", repaired)
         repaired.extend(self._repair_legacy_story_project_columns(cursor, table))
         repaired.extend(self._backfill_project_fields(cursor, table))
         return repaired
@@ -157,13 +167,14 @@ class Command(BaseCommand):
         self._add_column(cursor, table, "headline", "varchar(180) NOT NULL DEFAULT ''", repaired)
         self._add_column(cursor, table, "subheadline", "varchar(220) NOT NULL DEFAULT ''", repaired)
         self._add_column(cursor, table, "body_text", "text NOT NULL DEFAULT ''", repaired)
-        self._add_column(cursor, table, "price_text", "varchar(80) NOT NULL DEFAULT ''", repaired)
+        self._add_column(cursor, table, "price_text", "text NOT NULL DEFAULT ''", repaired)
         self._add_column(cursor, table, "call_to_action", "varchar(140) NOT NULL DEFAULT ''", repaired)
         self._add_column(cursor, table, "visual_direction", "text NOT NULL DEFAULT ''", repaired)
         self._add_column(cursor, table, "prompt_snapshot", "text NOT NULL DEFAULT ''", repaired)
         self._add_column(cursor, table, "provider_response", "text NOT NULL DEFAULT ''", repaired)
         self._add_column(cursor, table, "is_current", "boolean NOT NULL DEFAULT true", repaired)
         self._add_column(cursor, table, "parent_id", "bigint NULL", repaired)
+        self._alter_column_to_text(cursor, table, "price_text", repaired)
         return repaired
 
     def _repair_story_image_variant(self, cursor) -> list[str]:

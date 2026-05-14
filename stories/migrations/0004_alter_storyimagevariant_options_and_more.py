@@ -24,7 +24,6 @@ def add_storyimagevariant_target_format(apps, schema_editor):
             choices=[
                 ("story", "Story 1080x1920"),
                 ("feed", "Feed 1080x1350"),
-                ("landscape", "1920x1080"),
                 ("square", "Quadrado 1080x1080"),
             ],
             default="feed",
@@ -70,7 +69,7 @@ class Migration(migrations.Migration):
                 migrations.AddField(
                     model_name='storyimagevariant',
                     name='target_format',
-                    field=models.CharField(choices=[('story', 'Story 1080x1920'), ('feed', 'Feed 1080x1350'), ('landscape', '1920x1080'), ('square', 'Quadrado 1080x1080')], default='feed', max_length=20),
+                    field=models.CharField(choices=[('story', 'Story 1080x1920'), ('feed', 'Feed 1080x1350'), ('square', 'Quadrado 1080x1080')], default='feed', max_length=20),
                 ),
             ],
         ),
@@ -89,7 +88,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='storyproject',
             name='target_format',
-            field=models.CharField(choices=[('story', 'Story 1080x1920'), ('feed', 'Feed 1080x1350'), ('landscape', '1920x1080'), ('square', 'Quadrado 1080x1080')], default='story', max_length=20),
+            field=models.CharField(choices=[('story', 'Story 1080x1920'), ('feed', 'Feed 1080x1350'), ('square', 'Quadrado 1080x1080')], default='story', max_length=20),
         ),
         migrations.AlterUniqueTogether(
             name='storyimagevariant',

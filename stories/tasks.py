@@ -101,7 +101,7 @@ def queue_bulk_batch(batch_id: int) -> None:
                     content_type=StoryProject.ContentType.PROMOTIONAL,
                     brand_mode=batch.brand_mode,
                     target_format=StoryProject.Format.FEED,
-                    target_formats=[StoryProject.Format.FEED, StoryProject.Format.LANDSCAPE],
+                    target_formats=[StoryProject.Format.FEED, StoryProject.Format.STORY],
                     topic=promo["title"],
                     custom_brief=promo["description"],
                     promotional_price=promo["price"],

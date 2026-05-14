@@ -435,7 +435,7 @@ def build_promotional_payload(project: StoryProject, brand: BrandSystem, latest:
         "headline": headline,
         "subheadline": subheadline,
         "body_text": body[:220],
-        "price_text": price[:80],
+        "price_text": price,
         "call_to_action": cta[:140],
         "visual_direction": visual_direction,
     }
@@ -500,8 +500,6 @@ def build_svg_placeholder(concept: StoryConcept, brand: BrandSystem, target_form
 def canvas_for_format(target_format: str) -> tuple[int, int]:
     if target_format == StoryProject.Format.FEED:
         return 1080, 1350
-    if target_format == StoryProject.Format.LANDSCAPE:
-        return 1920, 1080
     if target_format == StoryProject.Format.SQUARE:
         return 1080, 1080
     return 1080, 1920
@@ -510,8 +508,6 @@ def canvas_for_format(target_format: str) -> tuple[int, int]:
 def image_size_for_format(target_format: str) -> str:
     if target_format == StoryProject.Format.FEED:
         return "1024x1536"
-    if target_format == StoryProject.Format.LANDSCAPE:
-        return "1536x1024"
     if target_format == StoryProject.Format.SQUARE:
         return "1024x1024"
     return "1024x1792"

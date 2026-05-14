@@ -56,6 +56,39 @@ Gabinete GC10 3 fans
         self.assertIn("4.999 a vista ou", promotions[0]["price"])
         self.assertIn("10x de 559,90 sem juros", promotions[0]["price"])
 
+    def test_long_price_text_fits_project_and_concept_fields(self):
+        raw_input = """
+PC Gamer AMD Ryzen 5 8600G, 16GB, SSD 512GB
+Amd Ryzen 5 8600g,
+Memória 16gb 5600mhz Ddr5,
+Ssd Nvme 512gb,
+Fonte 500w,
+Placa A620,
+Gabinete Antec Cx200
+À vista R$ 4556,07
+ou R$ 4899,00 parcelado em 10x de R$ 489,90 sem juros
+""".strip()
+
+        promotions = split_bulk_promotions(raw_input)
+        project = StoryProject.objects.create(
+            title=promotions[0]["title"],
+            brand_mode=StoryProject.BrandMode.BETA,
+            content_type=StoryProject.ContentType.PROMOTIONAL,
+            topic=promotions[0]["title"],
+            custom_brief=promotions[0]["description"],
+            promotional_price=promotions[0]["price"],
+        )
+        concept = StoryConcept.objects.create(
+            project=project,
+            version_number=1,
+            status=StoryConcept.Status.READY,
+            is_current=True,
+            price_text=promotions[0]["price"],
+        )
+
+        self.assertIn("489,90", project.promotional_price)
+        self.assertIn("489,90", concept.price_text)
+
 
 class ProjectWorkflowViewTests(TestCase):
     def setUp(self):
@@ -81,7 +114,7 @@ class ProjectWorkflowViewTests(TestCase):
                 "title": project.title,
                 "brand_mode": project.brand_mode,
                 "content_type": project.content_type,
-                "target_formats": [StoryProject.Format.FEED, StoryProject.Format.LANDSCAPE],
+                "target_formats": [StoryProject.Format.FEED, StoryProject.Format.STORY],
                 "article": "",
                 "topic": project.topic,
                 "custom_brief": project.custom_brief,
@@ -94,7 +127,7 @@ class ProjectWorkflowViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         project.refresh_from_db()
         self.assertEqual(project.status, StoryProject.Status.QUEUED)
-        self.assertEqual(project.selected_target_formats, [StoryProject.Format.FEED, StoryProject.Format.LANDSCAPE])
+        self.assertEqual(project.selected_target_formats, [StoryProject.Format.FEED, StoryProject.Format.STORY])
         mocked_delay.assert_called_once_with(project.pk, False)
 
     def test_home_can_delete_project(self):
@@ -123,7 +156,7 @@ class ProjectFormatSelectionTests(TestCase):
                 "title": "Formatos beta",
                 "brand_mode": StoryProject.BrandMode.BETA,
                 "content_type": StoryProject.ContentType.PROMOTIONAL,
-                "target_formats": [StoryProject.Format.FEED, StoryProject.Format.LANDSCAPE],
+                "target_formats": [StoryProject.Format.FEED, StoryProject.Format.STORY],
                 "topic": "PC TESTE",
                 "custom_brief": "PC TESTE",
                 "promotional_price": "R$ 1000",
@@ -136,7 +169,7 @@ class ProjectFormatSelectionTests(TestCase):
         self.assertTrue(form.is_valid(), form.errors)
         project = form.save()
 
-        self.assertEqual(project.selected_target_formats, [StoryProject.Format.FEED, StoryProject.Format.LANDSCAPE])
+        self.assertEqual(project.selected_target_formats, [StoryProject.Format.FEED, StoryProject.Format.STORY])
         self.assertEqual(project.target_format, StoryProject.Format.FEED)
 
     @patch("stories.tasks.generate_image_variant.delay")
@@ -145,7 +178,7 @@ class ProjectFormatSelectionTests(TestCase):
             title="Multiformato",
             brand_mode=StoryProject.BrandMode.BETA,
             content_type=StoryProject.ContentType.PROMOTIONAL,
-            target_formats=[StoryProject.Format.FEED, StoryProject.Format.LANDSCAPE],
+            target_formats=[StoryProject.Format.FEED, StoryProject.Format.STORY],
             target_format=StoryProject.Format.FEED,
             topic="PC TESTE",
             custom_brief="PC TESTE",
@@ -161,14 +194,14 @@ class ProjectFormatSelectionTests(TestCase):
             {
                 (StoryProject.Format.FEED, 1),
                 (StoryProject.Format.FEED, 2),
-                (StoryProject.Format.LANDSCAPE, 1),
-                (StoryProject.Format.LANDSCAPE, 2),
+                (StoryProject.Format.STORY, 1),
+                (StoryProject.Format.STORY, 2),
             },
         )
         mocked_delay.assert_any_call(concept.pk, StoryProject.Format.FEED, 1)
         mocked_delay.assert_any_call(concept.pk, StoryProject.Format.FEED, 2)
-        mocked_delay.assert_any_call(concept.pk, StoryProject.Format.LANDSCAPE, 1)
-        mocked_delay.assert_any_call(concept.pk, StoryProject.Format.LANDSCAPE, 2)
+        mocked_delay.assert_any_call(concept.pk, StoryProject.Format.STORY, 1)
+        mocked_delay.assert_any_call(concept.pk, StoryProject.Format.STORY, 2)
 
     def test_project_delete_does_not_crash_with_legacy_storyversion_table(self):
         project = StoryProject.objects.create(

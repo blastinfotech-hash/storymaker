@@ -59,7 +59,6 @@ class StoryProject(TimeStampedModel):
     class Format(models.TextChoices):
         STORY = "story", "Story 1080x1920"
         FEED = "feed", "Feed 1080x1350"
-        LANDSCAPE = "landscape", "1920x1080"
         SQUARE = "square", "Quadrado 1080x1080"
 
     class BrandMode(models.TextChoices):
@@ -75,7 +74,7 @@ class StoryProject(TimeStampedModel):
     target_formats = models.JSONField(default=list, blank=True)
     topic = models.CharField(max_length=200, blank=True)
     custom_brief = models.TextField(blank=True)
-    promotional_price = models.CharField(max_length=80, blank=True)
+    promotional_price = models.TextField(blank=True)
     call_to_action = models.CharField(max_length=140, blank=True)
     adjustment_request = models.TextField(blank=True, help_text="Único campo para pedir ajuste de conceito e das próximas imagens.")
     article = models.ForeignKey(NewsArticle, on_delete=models.SET_NULL, blank=True, null=True, related_name="story_projects")
@@ -159,7 +158,7 @@ class StoryConcept(TimeStampedModel):
     headline = models.CharField(max_length=180, blank=True)
     subheadline = models.CharField(max_length=220, blank=True)
     body_text = models.TextField(blank=True)
-    price_text = models.CharField(max_length=80, blank=True)
+    price_text = models.TextField(blank=True)
     call_to_action = models.CharField(max_length=140, blank=True)
     visual_direction = models.TextField(blank=True)
     prompt_snapshot = models.TextField(blank=True)
