@@ -188,7 +188,8 @@ class Command(BaseCommand):
         self._add_column(cursor, table, "status", "varchar(20) NOT NULL DEFAULT 'ready'", repaired)
         self._add_column(cursor, table, "image_prompt_snapshot", "text NOT NULL DEFAULT ''", repaired)
         self._add_column(cursor, table, "provider_response", "text NOT NULL DEFAULT ''", repaired)
-        self._add_column(cursor, table, "asset", "varchar(100) NOT NULL DEFAULT ''", repaired)
+        # Keep this in sync with StoryImageVariant.asset.max_length
+        self._add_column(cursor, table, "asset", "varchar(500) NOT NULL DEFAULT ''", repaired)
         self._add_column(cursor, table, "asset_mime_type", "varchar(60) NOT NULL DEFAULT ''", repaired)
         self._add_column(cursor, table, "error_message", "text NOT NULL DEFAULT ''", repaired)
         self._add_column(cursor, table, "is_selected", "boolean NOT NULL DEFAULT false", repaired)

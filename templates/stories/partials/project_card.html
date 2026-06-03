@@ -18,9 +18,6 @@
     {% empty %}
       <div class="panel" style="min-height:180px; display:flex; align-items:center; justify-content:center; text-align:center;">Aguardando imagens</div>
     {% endfor %}
-    {% if project.latest_ready_variants|length == 1 %}
-      <div class="panel" style="min-height:180px; display:flex; align-items:center; justify-content:center; text-align:center;">Variante 2 em fila</div>
-    {% endif %}
     {% if not project.latest_ready_variants %}
       <div class="panel" style="min-height:180px; display:flex; align-items:center; justify-content:center; text-align:center;">Conceito / imagens em processamento</div>
     {% endif %}

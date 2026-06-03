@@ -70,7 +70,10 @@ class StoryProject(TimeStampedModel):
     content_type = models.CharField(max_length=20, choices=ContentType.choices, default=ContentType.NEWS)
     brand_mode = models.CharField(max_length=10, choices=BrandMode.choices, default=BrandMode.BLAST)
     status = models.CharField(max_length=30, choices=Status.choices, default=Status.DRAFT)
+    # Canonical format for the project. Only one format is generated per run.
     target_format = models.CharField(max_length=20, choices=Format.choices, default=Format.STORY)
+    # Legacy multi-format support is kept for backwards compatibility, but only the
+    # primary target_format is respected by the workflow.
     target_formats = models.JSONField(default=list, blank=True)
     topic = models.CharField(max_length=200, blank=True)
     custom_brief = models.TextField(blank=True)
@@ -79,7 +82,8 @@ class StoryProject(TimeStampedModel):
     adjustment_request = models.TextField(blank=True, help_text="Único campo para pedir ajuste de conceito e das próximas imagens.")
     article = models.ForeignKey(NewsArticle, on_delete=models.SET_NULL, blank=True, null=True, related_name="story_projects")
     bulk_batch = models.ForeignKey(BulkProjectBatch, on_delete=models.SET_NULL, blank=True, null=True, related_name="projects")
-    requested_image_count = models.PositiveSmallIntegerField(default=2)
+    # Only one image is generated per project round.
+    requested_image_count = models.PositiveSmallIntegerField(default=1)
     error_message = models.TextField(blank=True)
 
     class Meta:
@@ -89,10 +93,14 @@ class StoryProject(TimeStampedModel):
         return self.title
 
     def save(self, *args, **kwargs):
-        self.requested_image_count = 2
-        selected_formats = self.selected_target_formats
-        if not selected_formats:
-            selected_formats = [self.target_format or self.Format.STORY]
+        # Enforce a single variant per generation round.
+        self.requested_image_count = 1
+
+        # Ensure a valid single target format and keep legacy target_formats in sync.
+        allowed_formats = {choice for choice, _ in self.Format.choices}
+        if self.target_format not in allowed_formats:
+            self.target_format = self.Format.STORY
+        selected_formats = self.selected_target_formats or [self.target_format]
         self.target_formats = selected_formats
         self.target_format = selected_formats[0]
         if not self.slug:
@@ -112,15 +120,27 @@ class StoryProject(TimeStampedModel):
 
     @property
     def selected_target_formats(self) -> list[str]:
+        """Return the single effective target format as a one-item list.
+
+        The canonical source is target_format. target_formats is only used to
+        gracefully handle legacy rows that may still contain multiple values.
+        """
+
         allowed = {choice for choice, _ in self.Format.choices}
+
+        # Primary, current behaviour: honour the single target_format.
+        if self.target_format in allowed:
+            return [self.target_format]
+
+        # Legacy safety net: fall back to the first valid stored format.
         stored = self.target_formats or []
         if isinstance(stored, str):
             stored = [stored]
-        values = [value for value in stored if value in allowed]
-        if values:
-            return values
-        if self.target_format in allowed:
-            return [self.target_format]
+        for value in stored:
+            if value in allowed:
+                return [value]
+
+        # Final fallback: no valid format stored.
         return []
 
     @property
@@ -186,7 +206,7 @@ class StoryImageVariant(TimeStampedModel):
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.QUEUED)
     image_prompt_snapshot = models.TextField(blank=True)
     provider_response = models.TextField(blank=True)
-    asset = models.FileField(upload_to=story_asset_upload_to, blank=True)
+    asset = models.FileField(upload_to=story_asset_upload_to, blank=True, max_length=500)
     asset_mime_type = models.CharField(max_length=60, blank=True)
     error_message = models.TextField(blank=True)
     is_selected = models.BooleanField(default=False)

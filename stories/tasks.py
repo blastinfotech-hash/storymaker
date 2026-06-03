@@ -96,12 +96,13 @@ def queue_bulk_batch(batch_id: int) -> None:
         project_ids = []
         with transaction.atomic():
             for promo in promotions:
+                # In bulk mode we always generate a single format: feed (1080x1350).
                 project = StoryProject.objects.create(
                     title=promo["title"],
                     content_type=StoryProject.ContentType.PROMOTIONAL,
                     brand_mode=batch.brand_mode,
                     target_format=StoryProject.Format.FEED,
-                    target_formats=[StoryProject.Format.FEED, StoryProject.Format.STORY],
+                    target_formats=[StoryProject.Format.FEED],
                     topic=promo["title"],
                     custom_brief=promo["description"],
                     promotional_price=promo["price"],

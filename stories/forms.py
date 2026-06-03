@@ -4,12 +4,12 @@ from stories.models import BulkProjectBatch, StoryProject
 
 
 class StoryProjectForm(forms.ModelForm):
-    target_formats = forms.MultipleChoiceField(
-        label="Tamanhos a gerar",
+    target_format = forms.ChoiceField(
+        label="Tamanho a gerar",
         choices=StoryProject.Format.choices,
-        widget=forms.CheckboxSelectMultiple,
+        widget=forms.RadioSelect,
         required=True,
-        help_text="Selecione um ou mais tamanhos. Nenhuma escolha será sobrescrita automaticamente.",
+        help_text="Selecione o formato principal da arte gerada para este projeto.",
     )
 
     class Meta:
@@ -19,6 +19,7 @@ class StoryProjectForm(forms.ModelForm):
             "brand_mode",
             "content_type",
             "article",
+            "target_format",
             "topic",
             "custom_brief",
             "promotional_price",
@@ -44,23 +45,16 @@ class StoryProjectForm(forms.ModelForm):
         }
         help_texts = {
             "custom_brief": "Para promocionais, informe aqui o descritivo da arte: produto, benefícios, specs e oferta.",
-            "adjustment_request": "Campo único usado para orientar a próxima geração de conceito e imagens.",
+             "adjustment_request": "Campo único usado para orientar a próxima geração de conceito e imagens.",
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Default new projects to the feed format (1080x1350).
         if self.instance.pk:
-            self.fields["target_formats"].initial = self.instance.selected_target_formats
+            self.fields["target_format"].initial = self.instance.target_format
         else:
-            self.fields["target_formats"].initial = [StoryProject.Format.FEED]
-
-    def save(self, commit=True):
-        instance = super().save(commit=False)
-        instance.target_formats = self.cleaned_data["target_formats"]
-        instance.target_format = instance.target_formats[0]
-        if commit:
-            instance.save()
-        return instance
+            self.fields["target_format"].initial = StoryProject.Format.FEED
 
 
 class BulkProjectBatchForm(forms.ModelForm):

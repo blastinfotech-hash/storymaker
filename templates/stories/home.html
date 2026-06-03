@@ -8,7 +8,7 @@
     <div style="display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap;">
       <div>
         <div class="muted" style="color:#d1d5db;">Painel operacional</div>
-        <h1 style="margin:8px 0 12px; font-size:40px;">Projetos, conceitos e 2 variantes por padrão</h1>
+        <h1 style="margin:8px 0 12px; font-size:40px;">Projetos, conceitos e 1 variante por padrão</h1>
         <p style="margin:0; max-width:780px; line-height:1.6; color:#e5e7eb;">Cada projeto agora segue o modo visual <strong>Blast</strong> ou <strong>Beta</strong>, roda assíncrono e aparece na home com suas imagens para facilitar a busca visual.</p>
       </div>
       <div class="panel" style="min-width:220px; background:rgba(255,255,255,0.08); border-color:rgba(255,255,255,0.15); color:white;">
@@ -19,7 +19,7 @@
   </section>
   <section class="panel">
     <h2 style="margin-top:0;">Criação em massa</h2>
-    <p class="muted">Cole várias promoções. O sistema recorta, cria projetos promocionais e dispara conceito + 2 imagens sem confirmação manual.</p>
+    <p class="muted">Cole várias promoções. O sistema recorta, cria projetos promocionais e dispara conceito + 1 imagem (formato feed 1080x1350) sem confirmação manual.</p>
     <form method="post" class="grid" id="bulk-create-form">
       {% csrf_token %}
       <input type="hidden" name="action" value="bulk_create">

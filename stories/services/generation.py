@@ -173,9 +173,10 @@ def generate_story_image_variant(concept: StoryConcept, target_format: str, vari
     )
     prompt_snapshot = build_image_prompt(concept, brand, target_format, variant_number)
     provider_response = ""
-    content = build_svg_placeholder(concept, brand, target_format, variant_number)
-    mime_type = "image/svg+xml"
-    filename = f"{target_format}-variant-{variant_number}.svg"
+    content: bytes | None = None
+    mime_type = ""
+    filename = ""
+    success = False
 
     if settings.OPENAI_API_KEY:
         try:
@@ -189,15 +190,28 @@ def generate_story_image_variant(concept: StoryConcept, target_format: str, vari
             mime_type = "image/png"
             filename = f"{target_format}-variant-{variant_number}.png"
             provider_response = f"Image generated with {settings.OPENAI_IMAGE_MODEL}."
+            success = True
         except Exception as exc:  # noqa: BLE001
             provider_response = f"OpenAI image generation failed: {exc}"
+    else:
+        provider_response = "Image generation skipped: OPENAI_API_KEY is not configured."
 
     variant.image_prompt_snapshot = prompt_snapshot
     variant.provider_response = provider_response
-    variant.status = StoryImageVariant.Status.READY
-    variant.error_message = ""
-    variant.asset.save(filename, ContentFile(content), save=False)
-    variant.asset_mime_type = mime_type
+
+    if success and content is not None:
+        variant.status = StoryImageVariant.Status.READY
+        variant.error_message = ""
+        variant.asset.save(filename, ContentFile(content), save=False)
+        variant.asset_mime_type = mime_type
+    else:
+        variant.status = StoryImageVariant.Status.FAILED
+        variant.error_message = provider_response or "Image generation failed."
+        # Clear any previous asset so UIs do not show stale placeholders.
+        if variant.asset:
+            variant.asset.delete(save=False)
+        variant.asset_mime_type = ""
+
     variant.save()
     refresh_project_status(concept.project)
     return variant

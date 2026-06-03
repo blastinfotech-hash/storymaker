@@ -67,7 +67,7 @@ def create_project(request: HttpRequest) -> HttpResponse:
             messages.success(request, "Projeto criado. Agora voce pode disparar a geracao async.")
             return redirect("project_detail", slug=project.slug)
     else:
-        form = StoryProjectForm(initial={"brand_mode": StoryProject.BrandMode.BLAST, "requested_image_count": 2})
+        form = StoryProjectForm(initial={"brand_mode": StoryProject.BrandMode.BLAST})
     return render(request, "stories/create_project.html", {"form": form})
 
 

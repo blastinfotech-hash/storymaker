@@ -5,12 +5,12 @@
 {% block content %}
 <section class="panel">
   <h1 style="margin-top:0;">Novo projeto</h1>
-  <p class="muted">Escolha o modo visual <strong>Blast</strong> ou <strong>Beta</strong>. Cada projeto gera 2 imagens por padrão.</p>
+  <p class="muted">Escolha o modo visual <strong>Blast</strong> ou <strong>Beta</strong>. Cada projeto gera 1 imagem por padrão.</p>
   <form method="post" class="grid">
     {% csrf_token %}
     <div class="form-grid">
       {% for field in form %}
-        <div class="{% if field.name == 'custom_brief' or field.name == 'adjustment_request' or field.name == 'target_formats' %}full{% endif %}">
+        <div class="{% if field.name == 'custom_brief' or field.name == 'adjustment_request' or field.name == 'target_format' %}full{% endif %}">
           <label for="{{ field.id_for_label }}">{{ field.label }}</label>
           {{ field }}
           {% if field.help_text %}<div class="muted" style="margin-top:6px;">{{ field.help_text }}</div>{% endif %}
