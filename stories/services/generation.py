@@ -308,6 +308,7 @@ def build_image_prompt(concept: StoryConcept, brand: BrandSystem, target_format:
             - Never add logos, brand marks, fake seals, fake UI labels or extra callouts.
             - Keep the product large, centered and commercially realistic.
             - Use a clean blurred environment and preserve legibility for headline, specs and price.
+            - Do not repeat the same piece of information more than two times in the layout (headline, price, CTA, product name or key specs). Prefer showing each key text only once.
             """
         ).strip()
 
@@ -327,6 +328,9 @@ def build_image_prompt(concept: StoryConcept, brand: BrandSystem, target_format:
         Variation number: {variant_number} of {project.requested_image_count}
 
         Create a distinct variation while keeping the same campaign concept, same product positioning and same brand identity.
+
+        Constraints:
+        - Do not repeat any key text (headline, price, CTA, product/topic or key specs) more than two times in the image; ideally each appears only once.
         """
     ).strip()
 
