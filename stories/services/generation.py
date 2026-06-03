@@ -77,20 +77,20 @@ BETA_GUIDE = BrandSystem(
     accent="#0066CC",
     dark="#111111",
     light="#FFFFFF",
-    layout_summary="varejo de informatica mobile-first, azul corporativo forte, preco extremamente dominante, produto central e fundo corporativo desfocado",
+    layout_summary="varejo de informatica mobile-first, azul corporativo forte, produto protagonista e preco em destaque controlado",
     manual=dedent(
         """
         Guia Mestre de Direção Visual - DNA Visual das Artes Promocionais Beta Informática.
 
-        Objetivo: criar peças com forte apelo comercial, conversão rápida em redes sociais, clareza extrema de leitura, destaque agressivo de preço, aparência tecnológica e profissional, estrutura modular replicável e alta performance mobile-first. A leitura principal deve acontecer em menos de 3 segundos e comunicar promoção, oportunidade, confiança, tecnologia, custo-benefício e profissionalismo.
+        Objetivo: criar peças com forte apelo comercial, conversão rápida em redes sociais, clareza extrema de leitura, aparência tecnológica e profissional. A leitura principal deve acontecer em menos de 3 segundos e comunicar promoção, oportunidade, confiança, tecnologia, custo-benefício e profissionalismo.
 
         Categoria visual: varejo de informática, marketplace premium popular, promoção corporativa, tecnologia comercial, comunicação de feed social e loja física regional. A estética deve ser limpa, objetiva, comercial, moderna, funcional e altamente escaneável.
 
         Estrutura fixa: HEADLINE PROMOCIONAL, SUBTÍTULO OU BENEFÍCIO, PREÇO PRINCIPAL, PRODUTO EM DESTAQUE, ESPECIFICAÇÕES e RODAPÉ INSTITUCIONAL. O formato oficial é vertical 4:5, otimizado para Instagram Feed, Facebook Feed, Marketplace e Ads Mobile.
 
-        Hierarquia de atenção: PROMOÇÃO, PREÇO, PRODUTO, BENEFÍCIO, ESPECIFICAÇÕES e MARCA. Usar escala tipográfica, contraste, peso visual, centralização, cor e espaçamento para guiar a leitura.
+        Hierarquia de atenção: PROMOÇÃO, PRODUTO, PREÇO, BENEFÍCIO, ESPECIFICAÇÕES. Usar escala tipográfica, contraste, peso visual, centralização, cor e espaçamento para guiar a leitura.
 
-        Composição: blocos grandes e modulares. Topo com headline promocional. Subhead com benefício principal e especificação resumida. Área central com produto, preço e elementos de destaque. Base com especificações, CTA institucional e reforço comercial.
+        Composição: blocos grandes e modulares. Topo com headline promocional. Área central com produto, preço e elementos de destaque, CTA institucional e reforço comercial.
 
         Fundo: nunca competir com o produto. Usar loja de informática, showroom, escritório, ambiente corporativo ou espaço comercial com gaussian blur forte, baixa nitidez, opacidade reduzida, baixo contraste e aparência clean. Paleta de fundo: branco acinzentado, off-white, cinza claro e cinza frio.
 
@@ -102,17 +102,17 @@ BETA_GUIDE = BrandSystem(
 
         Destaque visual das informações: sempre que fizer sentido, apresentar benefícios e especificações relevantes com apoio de ícones visuais simples, limpos e coerentes com tecnologia e varejo corporativo, sem excesso de elementos e sem transformar a arte em infográfico poluído.
 
-        Boxes promocionais: cantos extremamente arredondados, gradiente azul, sombra suave e contraste forte. Box de preço é um elemento importante de conversão, com estrutura POR, R$, VALOR, ,00, À VISTA e PARCELAMENTO quando houver. O valor deve ter destaque, mas sem escala exagerada ou ocupação excessiva da peça.
+        Boxes promocionais: cantos arredondados, gradiente azul, sombra suave e contraste forte. Box de preço é um elemento importante de conversão, com estrutura POR, R$, VALOR, ,00, À VISTA e PARCELAMENTO quando houver. O valor deve ter destaque, mas sem escala exagerada ou ocupação excessiva da peça.
 
         Produto: protagonista sempre. Grande escala, centralizado, alta nitidez, iluminação suave, recorte limpo, sombras suaves e profundidade realista. Evitar brilho exagerado, reflexos agressivos, glow, estética gamer e saturação excessiva.
 
-        Rodapé institucional: faixa horizontal azul ocupando toda a largura, com gradiente azul, texto branco, centralização e forte contraste. Deve encerrar a peça com reforço comercial, resumo técnico ou CTA institucional.
+        Rodapé institucional: faixa horizontal azul ocupando toda a largura, com gradiente azul, texto branco, centralização e forte contraste. Deve encerrar a peça com reforço comercial ou CTA institucional.
 
         Linguagem visual: direta, comercial, objetiva, limpa, moderna e escaneável. A arte deve funcionar em leitura rápida, identificando instantaneamente promoção, preço, produto e categoria.
 
         Proibições: fundos poluídos, neon exagerado, RGB gamer, sombras pesadas, glow excessivo, gradientes agressivos, tipografia fina, excesso de elementos, excesso de cores, desalinhamentos, textos longos e ícones desnecessários.
 
-        Fórmula ideal: topo com headline; subhead com benefício ou especificações rápidas; centro com produto e preço equilibrado; base com resumo e CTA institucional. DNA consolidado: varejo tecnológico, promoção direta, conversão rápida, estética limpa, mobile-first, produto protagonista, preço com destaque controlado, azul corporativo forte, tipografia bold, fundo desfocado clean, composição modular, contraste extremo e alta legibilidade.
+        Fórmula ideal: topo com headline; subhead com benefício; centro com produto e preço equilibrado; base com CTA institucional. DNA consolidado: varejo tecnológico, promoção direta, conversão rápida, estética limpa, mobile-first, produto protagonista, preço com destaque controlado, azul corporativo forte, tipografia bold, fundo desfocado clean, composição modular, contraste extremo e alta legibilidade.
         """
     ).strip(),
     master_prompt=(
