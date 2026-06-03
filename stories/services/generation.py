@@ -86,9 +86,9 @@ BETA_GUIDE = BrandSystem(
 
         Categoria visual: varejo de informática, marketplace premium popular, promoção corporativa, tecnologia comercial, comunicação de feed social e loja física regional. A estética deve ser limpa, objetiva, comercial, moderna, funcional e altamente escaneável.
 
-        Estrutura fixa: HEADLINE PROMOCIONAL, SUBTÍTULO OU BENEFÍCIO, PREÇO PRINCIPAL, PRODUTO EM DESTAQUE, ESPECIFICAÇÕES e RODAPÉ INSTITUCIONAL. O formato oficial é vertical 4:5, otimizado para Instagram Feed, Facebook Feed, Marketplace e Ads Mobile.
+        Estrutura fixa: HEADLINE PROMOCIONAL, PREÇO PRINCIPAL, PRODUTO EM DESTAQUE e ESPECIFICAÇÕES. O formato oficial é vertical 1080:1350, otimizado para Instagram Feed, Facebook Feed, Marketplace e Ads Mobile.
 
-        Hierarquia de atenção: PROMOÇÃO, PRODUTO, PREÇO, BENEFÍCIO, ESPECIFICAÇÕES. Usar escala tipográfica, contraste, peso visual, centralização, cor e espaçamento para guiar a leitura.
+        Hierarquia de atenção: PROMOÇÃO, PRODUTO, PREÇO. Usar escala tipográfica, contraste, peso visual, centralização, cor e espaçamento para guiar a leitura.
 
         Composição: blocos grandes e modulares. Topo com headline promocional. Área central com produto, preço e elementos de destaque, CTA institucional e reforço comercial.
 
@@ -106,13 +106,11 @@ BETA_GUIDE = BrandSystem(
 
         Produto: protagonista sempre. Grande escala, centralizado, alta nitidez, iluminação suave, recorte limpo, sombras suaves e profundidade realista. Evitar brilho exagerado, reflexos agressivos, glow, estética gamer e saturação excessiva.
 
-        Rodapé institucional: faixa horizontal azul ocupando toda a largura, com gradiente azul, texto branco, centralização e forte contraste. Deve encerrar a peça com reforço comercial ou CTA institucional.
-
         Linguagem visual: direta, comercial, objetiva, limpa, moderna e escaneável. A arte deve funcionar em leitura rápida, identificando instantaneamente promoção, preço, produto e categoria.
 
         Proibições: fundos poluídos, neon exagerado, RGB gamer, sombras pesadas, glow excessivo, gradientes agressivos, tipografia fina, excesso de elementos, excesso de cores, desalinhamentos, textos longos e ícones desnecessários.
 
-        Fórmula ideal: topo com headline; subhead com benefício; centro com produto e preço equilibrado; base com CTA institucional. DNA consolidado: varejo tecnológico, promoção direta, conversão rápida, estética limpa, mobile-first, produto protagonista, preço com destaque controlado, azul corporativo forte, tipografia bold, fundo desfocado clean, composição modular, contraste extremo e alta legibilidade.
+        Fórmula ideal: topo com headline; centro com produto e preço equilibrado; base com CTA. DNA consolidado: varejo tecnológico, promoção direta, conversão rápida, estética limpa, mobile-first, produto protagonista, preço com destaque controlado, azul corporativo forte, tipografia bold, fundo desfocado clean, composição modular, contraste extremo e alta legibilidade.
         """
     ).strip(),
     master_prompt=(
