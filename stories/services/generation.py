@@ -280,6 +280,7 @@ def build_image_prompt(concept: StoryConcept, brand: BrandSystem, target_format:
     if project.content_type == StoryProject.ContentType.PROMOTIONAL:
         facts = promotional_source_facts(project)
         product_category = infer_product_category(facts)
+        product_topic = normalize_short_line(project.topic or concept.headline or project.title, max_words=12, max_chars=120)
         return dedent(
             f"""
             {brand.master_prompt}
@@ -296,8 +297,7 @@ def build_image_prompt(concept: StoryConcept, brand: BrandSystem, target_format:
             - Body exact: {concept.body_text}
             - Price exact: {concept.price_text}
             - CTA exact: {concept.call_to_action}
-            - Product/topic exact: {project.topic}
-            - Source brief exact: {facts}
+            - Product/topic summary: {product_topic}
             - Approved visual direction: {concept.visual_direction}
 
             Hard rules:
