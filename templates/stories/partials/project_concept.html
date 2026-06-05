@@ -6,7 +6,9 @@
       <p><strong>Headline:</strong> {{ concept.headline }}</p>
       <p><strong>Subheadline:</strong> {{ concept.subheadline }}</p>
       <p><strong>Body:</strong> {{ concept.body_text }}</p>
-      <p><strong>Preço:</strong> {{ concept.price_text }}</p>
+      {% if concept.price_text %}
+        <p><strong>Preço:</strong> {{ concept.price_text }}</p>
+      {% endif %}
       <p><strong>CTA:</strong> {{ concept.call_to_action }}</p>
       <p><strong>Direção visual:</strong> {{ concept.visual_direction }}</p>
     </div>

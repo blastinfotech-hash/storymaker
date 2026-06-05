@@ -490,16 +490,26 @@ def build_promotional_payload(project: StoryProject, brand: BrandSystem, latest:
     if not price_candidate and project.promotional_price and project.promotional_price.strip():
         price_candidate = project.promotional_price.strip()
 
-    # Remove prefixos muito longos (como o nome completo do produto) quando
-    # claramente repetidos no início do texto de preço.
+    # Remove prefixos muito longos (como o nome completo do produto) apenas
+    # quando o restante ainda contém algarismos (sinal claro de que o preço
+    # foi preservado). Caso contrário, mantemos o texto original.
     if price_candidate:
+        original_price = price_candidate
         for prefix in [project.topic, headline_source]:
             if not prefix:
                 continue
-            prefix_norm = prefix.strip().lower()
-            if prefix_norm and price_candidate.lower().startswith(prefix_norm):
-                price_candidate = price_candidate[len(prefix_norm):].lstrip(" -,:")
+            prefix_norm = " ".join(prefix.split()).strip().lower()
+            candidate_norm = " ".join(price_candidate.split()).strip().lower()
+            if prefix_norm and candidate_norm.startswith(prefix_norm) and len(candidate_norm) > len(prefix_norm):
+                remainder = price_candidate[len(prefix_norm):].lstrip(" -,:")
+                # Só aceita a remoção se o restante ainda tiver dígitos.
+                if re.search(r"\d", remainder):
+                    price_candidate = remainder
                 break
+        # Se após a tentativa de remoção não houver mais nenhum dígito, volta
+        # para o texto original para não perder o preço.
+        if not re.search(r"\d", price_candidate):
+            price_candidate = original_price
 
     # Para projetos promocionais, se não houver preço detectado, deixamos o
     # campo vazio em vez de usar um placeholder genérico.
