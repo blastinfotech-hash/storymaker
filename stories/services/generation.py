@@ -281,6 +281,7 @@ def build_image_prompt(concept: StoryConcept, brand: BrandSystem, target_format:
         facts = promotional_source_facts(project)
         product_category = infer_product_category(facts)
         product_topic = normalize_short_line(project.topic or concept.headline or project.title, max_words=12, max_chars=120)
+        price_line = f"- Price exact: {concept.price_text}" if concept.price_text else ""
         return dedent(
             f"""
             {brand.master_prompt}
@@ -295,7 +296,7 @@ def build_image_prompt(concept: StoryConcept, brand: BrandSystem, target_format:
             - Headline exact: {concept.headline}
             - Subheadline exact: {concept.subheadline}
             - Body exact: {concept.body_text}
-            - Price exact: {concept.price_text}
+            {price_line}
             - CTA exact: {concept.call_to_action}
             - Product/topic summary: {product_topic}
             - Approved visual direction: {concept.visual_direction}
@@ -304,7 +305,7 @@ def build_image_prompt(concept: StoryConcept, brand: BrandSystem, target_format:
             - Render the exact product category described in the locked facts. Never swap desktop for notebook, notebook for desktop, or invent another item.
             - Never invent, replace or alter brands, models, specs, capacities, product family or price.
             - Use only the exact approved text and price above. Do not paraphrase, shorten, expand or translate them.
-            - The final image must contain the approved promotional text itself, with correct spelling and numbers.
+            - The final image must contain the approved promotional text itself, with correct spelling and numbers when a promotional price exists.
             - Never add logos, brand marks, fake seals, fake UI labels or extra callouts.
             - Keep the product large, centered and commercially realistic.
             - Use a clean blurred environment and preserve legibility for headline, specs and price.
@@ -479,18 +480,30 @@ def build_promotional_payload(project: StoryProject, brand: BrandSystem, latest:
         spec_lines.append(line)
     body = " | ".join(spec_lines[:4]).strip() or subheadline
 
-    # Preço: extrai apenas o trecho de preço, removendo prefixos longos
-    # como o nome completo do produto quando presente.
+    # Preço: tenta extrair apenas o trecho do preço, mas nunca perde o valor
+    # original caso a extração falhe.
     price_full = project.promotional_price or project.custom_brief or project.topic or ""
     price_candidate = extract_price_text(price_full)
-    for prefix in [project.topic, headline_source]:
-        if not prefix:
-            continue
-        prefix_norm = prefix.strip().lower()
-        if prefix_norm and price_candidate.lower().startswith(prefix_norm):
-            price_candidate = price_candidate[len(prefix_norm):].lstrip(" -,:")
-            break
-    price = price_candidate or "Consulte o valor"
+
+    # Se o parser não encontrou nada mas o campo de preço promocional está
+    # preenchido, preserva o texto original como fallback.
+    if not price_candidate and project.promotional_price and project.promotional_price.strip():
+        price_candidate = project.promotional_price.strip()
+
+    # Remove prefixos muito longos (como o nome completo do produto) quando
+    # claramente repetidos no início do texto de preço.
+    if price_candidate:
+        for prefix in [project.topic, headline_source]:
+            if not prefix:
+                continue
+            prefix_norm = prefix.strip().lower()
+            if prefix_norm and price_candidate.lower().startswith(prefix_norm):
+                price_candidate = price_candidate[len(prefix_norm):].lstrip(" -,:")
+                break
+
+    # Para projetos promocionais, se não houver preço detectado, deixamos o
+    # campo vazio em vez de usar um placeholder genérico.
+    price = price_candidate or ""
 
     cta = (project.call_to_action or "Fale conosco agora").strip()
     refinement = f" Ajuste solicitado: {project.adjustment_request.strip()}" if project.adjustment_request.strip() else ""
