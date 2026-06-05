@@ -382,8 +382,8 @@ def fallback_story_copy(project: StoryProject, brand: BrandSystem, latest: Story
 
 
 def build_promotional_concept_prompt(project: StoryProject, brand: BrandSystem, latest: StoryConcept | None) -> str:
-	facts = promotional_source_facts(project)
-	topic_summary = normalize_short_line(project.topic or project.title, max_words=10, max_chars=80)
+    facts = promotional_source_facts(project)
+    topic_summary = normalize_short_line(project.topic or project.title, max_words=10, max_chars=80)
     previous_context = ""
     if latest:
         previous_context = dedent(
@@ -398,62 +398,62 @@ def build_promotional_concept_prompt(project: StoryProject, brand: BrandSystem, 
             """
         ).strip()
 
-	return dedent(
-		f"""
-		Promotional concept generation for {brand.company_name}.
+    return dedent(
+        f"""
+        Promotional concept generation for {brand.company_name}.
 
-		Brand DNA:
-		{brand.manual}
+        Brand DNA:
+        {brand.manual}
 
-		Locked source facts. Never alter, swap or invent product family, specs or price:
-		{facts}
+        Locked source facts. Never alter, swap or invent product family, specs or price:
+        {facts}
 
-		Topic summary: {topic_summary}
-		Promotional price exact: {project.promotional_price}
-		CTA exact: {project.call_to_action}
-		Adjustment request: {project.adjustment_request}
+        Topic summary: {topic_summary}
+        Promotional price exact: {project.promotional_price}
+        CTA exact: {project.call_to_action}
+        Adjustment request: {project.adjustment_request}
 
-		{previous_context}
+        {previous_context}
 
-		Important: preserve the exact commercial facts from the source. You may only reorganize wording for hierarchy and readability. No substitutions.
+        Important: preserve the exact commercial facts from the source. You may only reorganize wording for hierarchy and readability. No substitutions.
 
-		Return plain text in this exact format:
-		HEADLINE: ...
-		SUBHEADLINE: ...
-		BODY: ...
-		PRICE: ...
-		CTA: ...
-		VISUAL_DIRECTION: ...
-		"""
-	).strip()
+        Return plain text in this exact format:
+        HEADLINE: ...
+        SUBHEADLINE: ...
+        BODY: ...
+        PRICE: ...
+        CTA: ...
+        VISUAL_DIRECTION: ...
+        """
+    ).strip()
 
 
 def promotional_source_facts(project: StoryProject) -> str:
-	"""Return a deduplicated list of core commercial facts for promotional projects.
+    """Return a deduplicated list of core commercial facts for promotional projects.
 
-	This function intentionally avoids repeating identical long strings (for example,
-	when topic and promotional_price carry the same full sentence), to reduce
-	verbosity in prompts while preserving all distinct commercial information.
-	"""
+    This function intentionally avoids repeating identical long strings (for example,
+    when topic and promotional_price carry the same full sentence), to reduce
+    verbosity in prompts while preserving all distinct commercial information.
+    """
 
-	raw_parts = [
-		project.topic,
-		project.custom_brief,
-		project.promotional_price,
-		project.call_to_action,
-	]
-	parts: list[str] = []
-	seen: set[str] = set()
-	for part in raw_parts:
-		if not part or not part.strip():
-			continue
-		text = part.strip()
-		normalized = " ".join(text.split()).strip().lower()
-		if normalized in seen:
-			continue
-		seen.add(normalized)
-		parts.append(text)
-	return "\n".join(parts)
+    raw_parts = [
+        project.topic,
+        project.custom_brief,
+        project.promotional_price,
+        project.call_to_action,
+    ]
+    parts: list[str] = []
+    seen: set[str] = set()
+    for part in raw_parts:
+        if not part or not part.strip():
+            continue
+        text = part.strip()
+        normalized = " ".join(text.split()).strip().lower()
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        parts.append(text)
+    return "\n".join(parts)
 
 
 def build_promotional_payload(project: StoryProject, brand: BrandSystem, latest: StoryConcept | None) -> dict:
