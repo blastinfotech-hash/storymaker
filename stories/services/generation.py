@@ -457,13 +457,41 @@ def promotional_source_facts(project: StoryProject) -> str:
 
 
 def build_promotional_payload(project: StoryProject, brand: BrandSystem, latest: StoryConcept | None) -> dict:
+    # Quebra o texto promocional em partes distintas para evitar repetição
     lines = [line.strip() for line in re.split(r"\n+", project.custom_brief or "") if line.strip()]
+
     headline_source = project.topic or project.title
     headline = normalize_short_line(headline_source, max_words=7, max_chars=70).upper()
-    subheadline = normalize_short_line(lines[0] if lines else headline_source, max_words=12, max_chars=110)
-    spec_lines = [line for line in lines if extract_price_text(line) == ""]
+
+    # Primeira linha descritiva sem preço como subheadline, se possível.
+    non_price_lines = [line for line in lines if extract_price_text(line) == ""]
+    sub_source = non_price_lines[0] if non_price_lines else headline_source
+    subheadline = normalize_short_line(sub_source, max_words=12, max_chars=110)
+
+    # Corpo: specs sem preço, evitando repetir headline/subheadline.
+    spec_lines = []
+    normalized_header = headline.lower()
+    normalized_sub = subheadline.lower()
+    for line in non_price_lines:
+        normalized_line = " ".join(line.split()).strip().lower()
+        if normalized_line in {normalized_header, normalized_sub}:
+            continue
+        spec_lines.append(line)
     body = " | ".join(spec_lines[:4]).strip() or subheadline
-    price = extract_price_text(project.promotional_price) or extract_price_text(project.custom_brief) or "Consulte o valor"
+
+    # Preço: extrai apenas o trecho de preço, removendo prefixos longos
+    # como o nome completo do produto quando presente.
+    price_full = project.promotional_price or project.custom_brief or project.topic or ""
+    price_candidate = extract_price_text(price_full)
+    for prefix in [project.topic, headline_source]:
+        if not prefix:
+            continue
+        prefix_norm = prefix.strip().lower()
+        if prefix_norm and price_candidate.lower().startswith(prefix_norm):
+            price_candidate = price_candidate[len(prefix_norm):].lstrip(" -,:")
+            break
+    price = price_candidate or "Consulte o valor"
+
     cta = (project.call_to_action or "Fale conosco agora").strip()
     refinement = f" Ajuste solicitado: {project.adjustment_request.strip()}" if project.adjustment_request.strip() else ""
     visual_direction = (
