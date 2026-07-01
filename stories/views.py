@@ -10,11 +10,10 @@ from django.db.models import Q
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
-from django.utils import timezone
 
-from stories.forms import BulkProjectBatchForm, StoryProjectForm
-from stories.models import BulkProjectBatch, StoryConcept, StoryImageVariant, StoryProject
-from stories.tasks import queue_bulk_batch, queue_concept_images, queue_project_generation
+from stories.forms import StoryProjectForm
+from stories.models import StoryConcept, StoryImageVariant, StoryProject
+from stories.tasks import generate_project_image
 
 logger = logging.getLogger(__name__)
 
@@ -25,13 +24,13 @@ def home(request: HttpRequest) -> HttpResponse:
         return _handle_home_post(request)
 
     query = request.GET.get("q", "").strip()
-    return render(request, "stories/home.html", _build_home_context(query=query, batch_form=BulkProjectBatchForm()))
+    return render(request, "stories/home.html", _build_home_context(query=query))
 
 
 @login_required
 def home_status(request: HttpRequest) -> JsonResponse:
     query = request.GET.get("q", "").strip()
-    context = _build_home_context(query=query, batch_form=BulkProjectBatchForm())
+    context = _build_home_context(query=query)
     project_cards = [
         {
             "id": project.pk,
@@ -39,19 +38,11 @@ def home_status(request: HttpRequest) -> JsonResponse:
         }
         for project in context["projects"]
     ]
-    batch_cards = [
-        {
-            "id": batch.pk,
-            "html": render_to_string("stories/partials/batch_card.html", {"batch": batch}, request=request),
-        }
-        for batch in context["batches"]
-    ]
     return JsonResponse(
         {
             "project_count": context["project_count"],
             "has_processing": context["has_processing"],
             "project_cards": project_cards,
-            "batch_cards": batch_cards,
         }
     )
 
@@ -64,7 +55,7 @@ def create_project(request: HttpRequest) -> HttpResponse:
             project = form.save(commit=False)
             project.status = StoryProject.Status.DRAFT
             project.save()
-            messages.success(request, "Projeto criado. Agora voce pode disparar a geracao async.")
+            messages.success(request, "Projeto criado. Agora voce pode disparar a geracao da imagem.")
             return redirect("project_detail", slug=project.slug)
     else:
         form = StoryProjectForm(initial={"brand_mode": StoryProject.BrandMode.BLAST})
@@ -82,7 +73,7 @@ def project_detail(request: HttpRequest, slug: str) -> HttpResponse:
                 form.save()
                 messages.success(request, "Projeto atualizado.")
                 return redirect("project_detail", slug=project.slug)
-        elif action == "generate_concept":
+        elif action == "generate_image":
             form = StoryProjectForm(request.POST, instance=project)
             if form.is_valid():
                 form.save()
@@ -90,35 +81,14 @@ def project_detail(request: HttpRequest, slug: str) -> HttpResponse:
                 project.error_message = ""
                 project.save(update_fields=["status", "error_message", "updated_at"])
                 try:
-                    queue_project_generation.delay(project.pk, False)
+                    generate_project_image.delay(project.pk)
                 except Exception as exc:  # noqa: BLE001
                     project.status = StoryProject.Status.FAILED
                     project.error_message = f"Fila assíncrona indisponível: {exc}"
                     project.save(update_fields=["status", "error_message", "updated_at"])
                     messages.error(request, project.error_message)
                     return redirect("project_detail", slug=project.slug)
-                messages.success(request, "Geração de conceito colocada na fila.")
-                return redirect("project_detail", slug=project.slug)
-        elif action == "generate_images":
-            form = StoryProjectForm(request.POST, instance=project)
-            if form.is_valid():
-                form.save()
-                concept = project.current_concept
-                if concept is None:
-                    messages.error(request, "Gere um conceito antes de solicitar as imagens.")
-                    return redirect("project_detail", slug=project.slug)
-                project.status = StoryProject.Status.IMAGE_GENERATING
-                project.error_message = ""
-                project.save(update_fields=["status", "error_message", "updated_at"])
-                try:
-                    queue_concept_images.delay(concept.pk)
-                except Exception as exc:  # noqa: BLE001
-                    project.status = StoryProject.Status.FAILED
-                    project.error_message = f"Fila assíncrona indisponível: {exc}"
-                    project.save(update_fields=["status", "error_message", "updated_at"])
-                    messages.error(request, project.error_message)
-                    return redirect("project_detail", slug=project.slug)
-                messages.success(request, "Geração de imagens colocada na fila.")
+                messages.success(request, "Geração de imagem colocada na fila.")
                 return redirect("project_detail", slug=project.slug)
         elif action == "delete_project":
             if _delete_project(project):
@@ -145,7 +115,6 @@ def project_detail_status(request: HttpRequest, slug: str) -> JsonResponse:
             "has_processing": project.is_processing,
             "actions_html": render_to_string("stories/partials/project_actions.html", context, request=request),
             "status_html": render_to_string("stories/partials/project_status.html", context, request=request),
-            "concept_html": render_to_string("stories/partials/project_concept.html", context, request=request),
             "variants_html": render_to_string("stories/partials/project_variants.html", context, request=request),
         }
     )
@@ -169,24 +138,6 @@ def _handle_variant_action(request: HttpRequest, project: StoryProject) -> HttpR
 
 def _handle_home_post(request: HttpRequest) -> HttpResponse:
     action = request.POST.get("action")
-    if action == "bulk_create":
-        form = BulkProjectBatchForm(request.POST)
-        if form.is_valid():
-            batch = form.save(commit=False)
-            batch.name = f"Lote {timezone.now().strftime('%d/%m %H:%M')}"
-            batch.status = BulkProjectBatch.Status.QUEUED
-            batch.save()
-            try:
-                queue_bulk_batch.delay(batch.pk)
-            except Exception as exc:  # noqa: BLE001
-                batch.status = BulkProjectBatch.Status.FAILED
-                batch.error_message = f"Fila assíncrona indisponível: {exc}"
-                batch.save(update_fields=["status", "error_message", "updated_at"])
-                messages.error(request, batch.error_message)
-                return redirect("home")
-            messages.success(request, "Lote enviado para processamento assíncrono.")
-            return redirect("home")
-        return render(request, "stories/home.html", _build_home_context(query="", batch_form=form))
     if action == "delete_project":
         project = get_object_or_404(StoryProject, pk=request.POST.get("project_id"))
         if _delete_project(project):
@@ -197,21 +148,15 @@ def _handle_home_post(request: HttpRequest) -> HttpResponse:
     return redirect("home")
 
 
-def _build_home_context(query: str, batch_form: BulkProjectBatchForm) -> dict:
+def _build_home_context(query: str) -> dict:
     projects = StoryProject.objects.order_by("-updated_at")
     if query:
         projects = projects.filter(Q(title__icontains=query) | Q(topic__icontains=query) | Q(custom_brief__icontains=query))
     projects = list(projects[:24])
-    batches = list(BulkProjectBatch.objects.order_by("-created_at")[:6])
-    has_processing = any(project.is_processing for project in projects) or any(
-        batch.status in {BulkProjectBatch.Status.QUEUED, BulkProjectBatch.Status.PARSING, BulkProjectBatch.Status.CREATING, BulkProjectBatch.Status.GENERATING}
-        for batch in batches
-    )
+    has_processing = any(project.is_processing for project in projects)
     return {
         "projects": projects,
-        "batches": batches,
         "project_count": StoryProject.objects.count(),
-        "batch_form": batch_form,
         "search_query": query,
         "has_processing": has_processing,
     }

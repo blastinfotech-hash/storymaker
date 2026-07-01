@@ -1,76 +1,31 @@
 from celery import shared_task
 from django.db import transaction
 
-from stories.models import BulkProjectBatch, StoryConcept, StoryImageVariant, StoryProject
-from stories.services.generation import generate_story_concept, generate_story_image_variant, refresh_project_status, split_bulk_promotions
+from stories.models import BulkProjectBatch, StoryProject
+from stories.services.generation import (
+    generate_story_image,
+    refresh_project_status,
+    split_bulk_promotions,
+)
 
 
 @shared_task
-def queue_project_generation(project_id: int, auto_images: bool = True) -> None:
+def generate_project_image(project_id: int) -> None:
     project = StoryProject.objects.get(pk=project_id)
     try:
-        project.status = StoryProject.Status.CONCEPT_GENERATING
+        project.status = StoryProject.Status.IMAGE_GENERATING
         project.error_message = ""
         project.save(update_fields=["status", "error_message", "updated_at"])
 
-        concept = generate_story_concept(project)
-        if not auto_images:
-            project.status = StoryProject.Status.CONCEPT_READY
-            project.save(update_fields=["status", "updated_at"])
-            return
-
-        queue_concept_images.delay(concept.pk)
+        generate_story_image(project, project.target_format)
     except Exception as exc:  # noqa: BLE001
         project.status = StoryProject.Status.FAILED
         project.error_message = str(exc)
         project.save(update_fields=["status", "error_message", "updated_at"])
-
-
-@shared_task
-def queue_concept_images(concept_id: int) -> None:
-    concept = StoryConcept.objects.select_related("project").get(pk=concept_id)
-    project = concept.project
-    try:
-        project.status = StoryProject.Status.IMAGE_GENERATING
-        project.save(update_fields=["status", "updated_at"])
-
-        for target_format in project.selected_target_formats:
-            for variant_number in range(1, project.requested_image_count + 1):
-                StoryImageVariant.objects.update_or_create(
-                    concept=concept,
-                    target_format=target_format,
-                    variant_number=variant_number,
-                    defaults={"status": StoryImageVariant.Status.QUEUED, "image_prompt_snapshot": ""},
-                )
-                generate_image_variant.delay(concept.pk, target_format, variant_number)
-    except Exception as exc:  # noqa: BLE001
-        project.status = StoryProject.Status.FAILED
-        project.error_message = str(exc)
-        project.save(update_fields=["status", "error_message", "updated_at"])
-
-
-@shared_task
-def generate_image_variant(concept_id: int, target_format: str, variant_number: int) -> None:
-    concept = StoryConcept.objects.select_related("project").get(pk=concept_id)
-    variant, _ = StoryImageVariant.objects.get_or_create(
-        concept=concept,
-        target_format=target_format,
-        variant_number=variant_number,
-    )
-    try:
-        variant.status = StoryImageVariant.Status.GENERATING
-        variant.error_message = ""
-        variant.save(update_fields=["status", "error_message", "updated_at"])
-        generate_story_image_variant(concept, target_format, variant_number)
-    except Exception as exc:  # noqa: BLE001
-        variant.status = StoryImageVariant.Status.FAILED
-        variant.error_message = str(exc)
-        variant.save(update_fields=["status", "error_message", "updated_at"])
-        concept.project.error_message = str(exc)
-        concept.project.save(update_fields=["error_message", "updated_at"])
-        refresh_project_status(concept.project)
-    if concept.project.bulk_batch_id:
-        refresh_bulk_batch_status.delay(concept.project.bulk_batch_id)
+        refresh_project_status(project)
+    finally:
+        if project.bulk_batch_id:
+            refresh_bulk_batch_status.delay(project.bulk_batch_id)
 
 
 @shared_task
@@ -96,7 +51,6 @@ def queue_bulk_batch(batch_id: int) -> None:
         project_ids = []
         with transaction.atomic():
             for promo in promotions:
-                # In bulk mode we always generate a single format: feed (1080x1350).
                 project = StoryProject.objects.create(
                     title=promo["title"],
                     content_type=StoryProject.ContentType.PROMOTIONAL,
@@ -111,7 +65,7 @@ def queue_bulk_batch(batch_id: int) -> None:
                 )
                 project_ids.append(project.pk)
 
-            transaction.on_commit(lambda: [queue_project_generation.delay(project_id) for project_id in project_ids])
+            transaction.on_commit(lambda: [generate_project_image.delay(project_id) for project_id in project_ids])
 
         batch.status = BulkProjectBatch.Status.GENERATING
         batch.save(update_fields=["status", "updated_at"])

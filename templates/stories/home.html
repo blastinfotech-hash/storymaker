@@ -8,31 +8,14 @@
     <div style="display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap;">
       <div>
         <div class="muted" style="color:#d1d5db;">Painel operacional</div>
-        <h1 style="margin:8px 0 12px; font-size:40px;">Projetos, conceitos e 1 variante por padrão</h1>
-        <p style="margin:0; max-width:780px; line-height:1.6; color:#e5e7eb;">Cada projeto agora segue o modo visual <strong>Blast</strong> ou <strong>Beta</strong>, roda assíncrono e aparece na home com suas imagens para facilitar a busca visual.</p>
+        <h1 style="margin:8px 0 12px; font-size:40px;">Projetos e 1 imagem por vez</h1>
+        <p style="margin:0; max-width:780px; line-height:1.6; color:#e5e7eb;">Cada projeto segue o modo visual <strong>Blast</strong> ou <strong>Beta</strong>, roda assíncrono e aparece na home com sua imagem para facilitar a busca visual.</p>
       </div>
       <div class="panel" style="min-width:220px; background:rgba(255,255,255,0.08); border-color:rgba(255,255,255,0.15); color:white;">
         <div class="muted" style="color:#d1d5db;">Projetos cadastrados</div>
         <div style="font-size:46px; font-weight:700; margin-top:8px;" id="project-count-value">{{ project_count }}</div>
       </div>
     </div>
-  </section>
-  <section class="panel">
-    <h2 style="margin-top:0;">Criação em massa</h2>
-    <p class="muted">Cole várias promoções. O sistema recorta, cria projetos promocionais e dispara conceito + 1 imagem (formato feed 1080x1350) sem confirmação manual.</p>
-    <form method="post" class="grid" id="bulk-create-form">
-      {% csrf_token %}
-      <input type="hidden" name="action" value="bulk_create">
-      <div>
-        <label for="id_brand_mode">Marca visual</label>
-        {{ batch_form.brand_mode }}
-      </div>
-      <div>
-        <label for="id_raw_input">Promoções</label>
-        {{ batch_form.raw_input }}
-      </div>
-      <button class="btn" type="submit">Gerar lote assíncrono</button>
-    </form>
   </section>
 </div>
 
@@ -48,19 +31,6 @@
     </form>
   </div>
 </section>
-
-{% if batches %}
-<section class="panel" style="margin-top:20px;">
-  <h2 style="margin-top:0;">Lotes recentes</h2>
-  <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));" id="batch-cards">
-    {% for batch in batches %}
-      <div id="batch-card-{{ batch.pk }}">
-        {% include "stories/partials/batch_card.html" %}
-      </div>
-    {% endfor %}
-  </div>
-</section>
-{% endif %}
 
 <section style="margin-top:20px;">
   <div style="display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:14px; flex-wrap:wrap;">
@@ -82,67 +52,11 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
-  (function () {
-    const form = document.getElementById("bulk-create-form");
-    if (!form) return;
-
-    const brandField = form.querySelector('[name="brand_mode"]');
-    const rawInputField = form.querySelector('[name="raw_input"]');
-    const storageKey = "storymaker.bulkCreateDraft";
-
-    function saveDraft() {
-      if (!rawInputField) return;
-      const payload = {
-        brand_mode: brandField ? brandField.value : "",
-        raw_input: rawInputField.value || "",
-      };
-      localStorage.setItem(storageKey, JSON.stringify(payload));
-    }
-
-    function loadDraft() {
-      const raw = localStorage.getItem(storageKey);
-      if (!raw) return;
-      try {
-        const draft = JSON.parse(raw);
-        if (brandField && !brandField.value && draft.brand_mode) {
-          brandField.value = draft.brand_mode;
-        }
-        if (rawInputField && !rawInputField.value && draft.raw_input) {
-          rawInputField.value = draft.raw_input;
-        }
-      } catch (error) {
-        localStorage.removeItem(storageKey);
-      }
-    }
-
-    function clearDraft() {
-      localStorage.removeItem(storageKey);
-    }
-
-    function hasPendingBulkDraft() {
-      return Boolean(rawInputField && rawInputField.value.trim());
-    }
-
-    loadDraft();
-
-    if (brandField) {
-      brandField.addEventListener("change", saveDraft);
-    }
-    if (rawInputField) {
-      rawInputField.addEventListener("input", saveDraft);
-    }
-    form.addEventListener("submit", clearDraft);
-
-    window.storymakerHasPendingBulkDraft = hasPendingBulkDraft;
-  })();
-</script>
 {% if has_processing %}
 <script>
   (function () {
     const pollUrl = "{% url 'home_status' %}?q={{ search_query|urlencode }}";
     const projectCards = document.getElementById("project-cards");
-    const batchCards = document.getElementById("batch-cards");
     const projectCount = document.getElementById("project-count-value");
 
     function syncCollection(container, prefix, items) {
@@ -172,11 +86,6 @@
 
     function scheduleRefresh() {
       setTimeout(function () {
-        const hasPendingBulkDraft = typeof window.storymakerHasPendingBulkDraft === "function" && window.storymakerHasPendingBulkDraft();
-        if (hasPendingBulkDraft) {
-          scheduleRefresh();
-          return;
-        }
         fetch(pollUrl, {headers: {"X-Requested-With": "XMLHttpRequest"}})
           .then((response) => response.json())
           .then((payload) => {
@@ -184,7 +93,6 @@
               projectCount.textContent = payload.project_count;
             }
             syncCollection(projectCards, "project-card-", payload.project_cards);
-            syncCollection(batchCards, "batch-card-", payload.batch_cards);
             if (payload.has_processing) {
               scheduleRefresh();
             }

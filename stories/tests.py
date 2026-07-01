@@ -8,7 +8,7 @@ from django.urls import reverse
 from stories.forms import StoryProjectForm
 from stories.services.generation import split_bulk_promotions
 from stories.models import StoryConcept, StoryImageVariant, StoryProject
-from stories.tasks import queue_concept_images
+from stories.tasks import generate_project_image
 
 
 class BulkPromotionSplitTests(TestCase):
@@ -96,8 +96,8 @@ class ProjectWorkflowViewTests(TestCase):
         self.user = user_model.objects.create_user(username="tester", password="secret123", is_staff=True)
         self.client.login(username="tester", password="secret123")
 
-    @patch("stories.views.queue_project_generation.delay")
-    def test_generate_concept_works_without_resubmitting_full_form(self, mocked_delay):
+    @patch("stories.views.generate_project_image.delay")
+    def test_generate_image_works_without_resubmitting_full_form(self, mocked_delay):
         project = StoryProject.objects.create(
             title="Projeto teste",
             brand_mode=StoryProject.BrandMode.BETA,
@@ -110,7 +110,7 @@ class ProjectWorkflowViewTests(TestCase):
         response = self.client.post(
             reverse("project_detail", args=[project.slug]),
             {
-                "action": "generate_concept",
+                "action": "generate_image",
                 "title": project.title,
                 "brand_mode": project.brand_mode,
                 "content_type": project.content_type,
@@ -128,7 +128,7 @@ class ProjectWorkflowViewTests(TestCase):
         project.refresh_from_db()
         self.assertEqual(project.status, StoryProject.Status.QUEUED)
         self.assertEqual(project.selected_target_formats, [StoryProject.Format.FEED])
-        mocked_delay.assert_called_once_with(project.pk, False)
+        mocked_delay.assert_called_once_with(project.pk)
 
     def test_home_can_delete_project(self):
         project = StoryProject.objects.create(
@@ -172,8 +172,19 @@ class ProjectFormatSelectionTests(TestCase):
         self.assertEqual(project.selected_target_formats, [StoryProject.Format.FEED])
         self.assertEqual(project.target_format, StoryProject.Format.FEED)
 
-    @patch("stories.tasks.generate_image_variant.delay")
-    def test_queue_concept_images_creates_single_variant_for_selected_format(self, mocked_delay):
+    @patch("stories.tasks.generate_story_image")
+    def test_generate_project_image_creates_concept_shell_and_single_variant(self, mocked_generate):
+        mocked_generate.side_effect = lambda project, target_format: StoryImageVariant.objects.create(
+            concept=StoryConcept.objects.create(
+                project=project,
+                version_number=1,
+                status=StoryConcept.Status.READY,
+                is_current=True,
+            ),
+            target_format=target_format,
+            variant_number=1,
+            status=StoryImageVariant.Status.READY,
+        )
         project = StoryProject.objects.create(
             title="Multiformato",
             brand_mode=StoryProject.BrandMode.BETA,
@@ -183,10 +194,11 @@ class ProjectFormatSelectionTests(TestCase):
             custom_brief="PC TESTE",
             promotional_price="R$ 1000",
         )
-        concept = StoryConcept.objects.create(project=project, version_number=1, status=StoryConcept.Status.READY, is_current=True)
 
-        queue_concept_images(concept.pk)
+        generate_project_image(project.pk)
 
+        concept = project.current_concept
+        self.assertIsNotNone(concept)
         created_pairs = set(StoryImageVariant.objects.filter(concept=concept).values_list("target_format", "variant_number"))
         self.assertEqual(
             created_pairs,
@@ -194,7 +206,6 @@ class ProjectFormatSelectionTests(TestCase):
                 (StoryProject.Format.FEED, 1),
             },
         )
-        mocked_delay.assert_any_call(concept.pk, StoryProject.Format.FEED, 1)
 
     def test_project_delete_does_not_crash_with_legacy_storyversion_table(self):
         project = StoryProject.objects.create(

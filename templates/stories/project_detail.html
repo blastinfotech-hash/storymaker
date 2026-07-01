@@ -43,10 +43,6 @@
   </div>
 </div>
 
-<div id="project-concept-panel">
-  {% include "stories/partials/project_concept.html" %}
-</div>
-
 <div id="project-variants-panel">
   {% include "stories/partials/project_variants.html" %}
 </div>
@@ -60,7 +56,6 @@
     const statusBadge = document.getElementById("project-status-badge");
     const actionsPanel = document.getElementById("project-actions-panel");
     const statusPanel = document.getElementById("project-status-panel");
-    const conceptPanel = document.getElementById("project-concept-panel");
     const variantsPanel = document.getElementById("project-variants-panel");
     let active = true;
 
@@ -79,7 +74,6 @@
           }
           replaceIfChanged(actionsPanel, payload.actions_html);
           replaceIfChanged(statusPanel, payload.status_html);
-          replaceIfChanged(conceptPanel, payload.concept_html);
           replaceIfChanged(variantsPanel, payload.variants_html);
           active = payload.has_processing;
           if (active) {

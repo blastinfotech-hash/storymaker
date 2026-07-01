@@ -1,11 +1,7 @@
 <div style="display:flex; gap:12px; flex-wrap:wrap; margin-top:14px;">
-  <button class="btn {% if project.brand_mode == 'blast' %}blast{% else %}beta{% endif %}" type="submit" form="project-edit-form" name="action" value="generate_concept">
-    {% if concept %}Gerar novo conceito{% else %}Gerar conceito{% endif %}
+  <button class="btn {% if project.brand_mode == 'blast' %}blast{% else %}beta{% endif %}" type="submit" form="project-edit-form" name="action" value="generate_image">
+    Gerar imagem
   </button>
-
-  {% if concept %}
-    <button class="btn secondary" type="submit" form="project-edit-form" name="action" value="generate_images">Aprovar conceito e gerar 1 imagem</button>
-  {% endif %}
 
   <form method="post" style="margin:0;" onsubmit="return confirm('Excluir este projeto?');">
     {% csrf_token %}
